@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard.jsx';
 import LiveOps from './pages/LiveOps.jsx';
 import Payments from './pages/Payments.jsx';
 import ProviderHealth from './pages/ProviderHealth.jsx';
+import Reconciliation from './pages/Reconciliation.jsx';
 import Customers from './pages/Customers.jsx';
 import Kyc from './pages/Kyc.jsx';
 import { EmptyState } from './components/ui.jsx';
@@ -38,6 +39,7 @@ export default function App() {
                         <Route path="/live" element={<LiveOps />} />
                         <Route path="/payments" element={<Payments />} />
                         <Route path="/health" element={<ProviderHealth />} />
+                        <Route path="/reconciliation" element={<Reconciliation />} />
                         <Route path="/customers" element={<Customers />} />
                         <Route path="/kyc" element={<Kyc />} />
                         <Route path="*" element={<NotFound />} />

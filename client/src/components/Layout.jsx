@@ -7,6 +7,7 @@ const NAV = [
     { to: '/live', label: 'Live Ops', icon: '⚡' },
     { to: '/payments', label: 'Payments', icon: '💳' },
     { to: '/health', label: 'Provider Health', icon: '🩺' },
+    { to: '/reconciliation', label: 'Reconciliation', icon: '🧾' },
     { to: '/customers', label: 'Customer 360', icon: '👤' },
     { to: '/kyc', label: 'KYC Review', icon: '🛡️' }
 ];

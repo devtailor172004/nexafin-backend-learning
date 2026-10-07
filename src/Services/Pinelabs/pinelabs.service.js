@@ -13,7 +13,7 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-import fetch from 'node-fetch';
+import { plFetch } from './httpClient.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { HTTP_STATUS } from '../../utils/httpStatus.js';
 import logger from '../../utils/logger.js';
@@ -125,7 +125,7 @@ export const plCreateOrder = async ({
 
     logger.info('Pine Labs: Creating order', { merchantOrderRef, orderAmount });
 
-    const response = await fetch(`${baseUrl}/api/pay/v1/orders`, {
+    const response = await plFetch(`${baseUrl}/api/pay/v1/orders`, {
         method: 'POST',
         headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -196,7 +196,7 @@ export const plChargeCard = async ({
         merchantPaymentReference
     });
 
-    const response = await fetch(
+    const response = await plFetch(
         `${baseUrl}/api/pay/v1/orders/${pluralOrderId}/payments`,
         {
             method: 'POST',
@@ -238,7 +238,7 @@ export const plChargeCard = async ({
 export const plGetCardDetails = async ({ accessToken, cardNumber, amount }) => {
     const baseUrl = getBaseUrl();
 
-    const response = await fetch(`${baseUrl}/api/pay/v1/getCardDetails`, {
+    const response = await plFetch(`${baseUrl}/api/pay/v1/getCardDetails`, {
         method: 'POST',
         headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -272,7 +272,7 @@ export const plGetCardDetails = async ({ accessToken, cardNumber, amount }) => {
 export const plGenerateOtp = async ({ accessToken, nxPayPaymentId }) => {
     const baseUrl = getBaseUrl();
 
-    const response = await fetch(`${baseUrl}/api/pay/v1/otp/generate`, {
+    const response = await plFetch(`${baseUrl}/api/pay/v1/otp/generate`, {
         method: 'POST',
         headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -296,7 +296,7 @@ export const plGenerateOtp = async ({ accessToken, nxPayPaymentId }) => {
 export const plResendOtp = async ({ accessToken, nxPayPaymentId }) => {
     const baseUrl = getBaseUrl();
 
-    const response = await fetch(`${baseUrl}/api/pay/v1/otp/resend`, {
+    const response = await plFetch(`${baseUrl}/api/pay/v1/otp/resend`, {
         method: 'POST',
         headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -350,7 +350,7 @@ export const plSubmitOtp = async ({
     }
 
 
-    const response = await fetch(
+    const response = await plFetch(
         `${baseUrl}/api/pay/v1/otp/submit`,
         {
             method: 'POST',
@@ -459,7 +459,7 @@ export const plAuthorizePayment = async ({
         `Pine Labs: Authorizing payment ${nxPayPaymentId} for order ${pluralOrderId}`
     );
 
-    const response = await fetch(
+    const response = await plFetch(
         `${baseUrl}/api/pay/v1/orders/${pluralOrderId}/payments/${nxPayPaymentId}/authorize`,
         {
             method: 'POST',
@@ -527,7 +527,7 @@ export const plCreateUpiPayment = async ({
         merchantPaymentReference, amount, useQr
     });
 
-    const response = await fetch(
+    const response = await plFetch(
         `${baseUrl}/api/pay/v1/orders/${pluralOrderId}/payments`,
         {
             method: 'POST',
@@ -600,7 +600,7 @@ export const plCreateNetbankingPayment = async ({
         merchantPaymentReference, amount, payCode
     });
 
-    const response = await fetch(
+    const response = await plFetch(
         `${baseUrl}/api/pay/v1/orders/${pluralOrderId}/payments`,
         {
             method: 'POST',
@@ -660,7 +660,7 @@ export const plCaptureAuthorizedOrder = async ({
         currency
     });
 
-    const response = await fetch(
+    const response = await plFetch(
         `${baseUrl}/api/pay/v1/orders/${pluralOrderId}/capture`,
         {
             method: 'PUT',
@@ -703,7 +703,7 @@ export const plCancelAuthorizedOrder = async ({
 
     logger.info(`Pine Labs: Cancelling pre-authorized order ${pluralOrderId}`);
 
-    const response = await fetch(
+    const response = await plFetch(
         `${baseUrl}/api/pay/v1/orders/${pluralOrderId}/cancel`,
         {
             method: 'PUT',
@@ -754,7 +754,7 @@ export const plGetOrderDetails = async ({ accessToken, pluralOrderId }) => {
         );
     }
 
-    const response = await fetch(
+    const response = await plFetch(
         `${baseUrl}/api/pay/v1/orders/${pluralOrderId}`,
         {
             method: 'GET',

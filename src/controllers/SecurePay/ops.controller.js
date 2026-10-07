@@ -20,6 +20,10 @@ import {
     getLiveSubscriberCount
 } from '../../securepay/eventBus.js';
 import { listProviders } from '../../securepay/providerRegistry.js';
+import { getProviderLatency } from '../../securepay/providerMetrics.js';
+import { selectProvider, evaluateFailover } from '../../securepay/router.js';
+import ReconciliationException from '../../models/ReconciliationException.js';
+import ReconciliationRun from '../../models/ReconciliationRun.js';
 import { allowedTransitions } from '../../securepay/stateMachine.js';
 import logger from '../../utils/logger.js';
 
@@ -114,6 +118,18 @@ export const getOperationsDashboard = asyncHandler(async (req, res) => {
         ? Number((delays.reduce((a, b) => a + b, 0) / delays.length).toFixed(2))
         : null;
 
+    // Reconciliation Center numbers (real counts, never fabricated).
+    const [openExceptions, exceptionsByType, latestRun] = await Promise.all([
+        ReconciliationException.count({ where: { status: { [Op.in]: ['OPEN', 'INVESTIGATING'] } } }),
+        ReconciliationException.findAll({
+            attributes: ['type', [fn('COUNT', col('id')), 'count']],
+            where: { status: { [Op.in]: ['OPEN', 'INVESTIGATING'] } },
+            group: ['type'],
+            raw: true
+        }),
+        ReconciliationRun.findOne({ order: [['createdAt', 'DESC']] })
+    ]);
+
     return res.status(HTTP_STATUS.OK).json(
         new ApiResponse(HTTP_STATUS.OK, {
             window: 'today',
@@ -145,11 +161,20 @@ export const getOperationsDashboard = asyncHandler(async (req, res) => {
             realtime: {
                 subscribers: getLiveSubscriberCount()
             },
-            // Reconciliation Center ships in Phase 2; declared explicitly so the
-            // dashboard never shows a fabricated number.
             reconciliation: {
-                implemented: false,
-                exceptions: null
+                implemented: true,
+                openExceptions,
+                byType: exceptionsByType.reduce((acc, row) => {
+                    acc[row.type] = Number(row.count);
+                    return acc;
+                }, {}),
+                latestRun: latestRun ? {
+                    uuid: latestRun.uuid,
+                    source: latestRun.source,
+                    exceptionCount: latestRun.exceptionCount,
+                    matchedCount: latestRun.matchedCount,
+                    completedAt: latestRun.completedAt
+                } : null
             }
         }, 'Operations dashboard fetched successfully.')
     );
@@ -250,6 +275,10 @@ export const getProviderHealth = asyncHandler(async (req, res) => {
 
     const healthFor = (provider) => {
         const isPrimary = provider.code === 'PINELABS';
+        // Latency is measured in-process (see securepay/providerMetrics.js).
+        // The sample count is returned so a low-confidence figure is visible.
+        const latency = getProviderLatency(provider.code);
+
         return {
             ...provider,
             status: provider.integrated ? (isPrimary ? status : 'NO_TRAFFIC') : 'NOT_INTEGRATED',
@@ -260,14 +289,20 @@ export const getProviderHealth = asyncHandler(async (req, res) => {
                 failed,
                 successRate,
                 avgWebhookDelaySeconds: avgDelay,
-                latencyMs: null // provider latency is not measured yet (Phase 2)
+                latencyMs: latency.avgLatencyMs,
+                latencyP95Ms: latency.p95LatencyMs,
+                latencySamples: latency.samples,
+                providerErrorRate: latency.errorRate
             } : {
                 transactions: 0,
                 succeeded: 0,
                 failed: 0,
                 successRate: 0,
                 avgWebhookDelaySeconds: null,
-                latencyMs: null
+                latencyMs: latency.avgLatencyMs,
+                latencyP95Ms: latency.p95LatencyMs,
+                latencySamples: latency.samples,
+                providerErrorRate: latency.errorRate
             }
         };
     };
@@ -275,6 +310,7 @@ export const getProviderHealth = asyncHandler(async (req, res) => {
     return res.status(HTTP_STATUS.OK).json(
         new ApiResponse(HTTP_STATUS.OK, {
             generatedAt: new Date().toISOString(),
+            latencyWindow: 'in-process rolling window of the last 200 provider calls (resets on restart)',
             providers: listProviders().map(healthFor)
         }, 'Provider health fetched successfully.')
     );
@@ -574,6 +610,63 @@ export const streamLiveEvents = asyncHandler(async (req, res) => {
         unsubscribe();
         res.end();
     });
+});
+
+/**
+ * @desc    Preview the Smart Router decision for a requirement, and the
+ *          failover verdict for a specific payment
+ * @route   GET /api/securepay/routing/preview
+ * @access  Private (Admin)
+ */
+export const previewProviderRouting = asyncHandler(async (req, res) => {
+    const { method, currency, country, paymentId } = req.query;
+
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const statusRows = await PineLabsPayment.findAll({
+        attributes: ['status', [fn('COUNT', col('id')), 'count']],
+        where: { createdAt: { [Op.gte]: since } },
+        group: ['status'],
+        raw: true
+    });
+
+    const byStatus = {};
+    statusRows.forEach((row) => { byStatus[row.status] = Number(row.count); });
+    const total = Object.values(byStatus).reduce((sum, count) => sum + count, 0);
+    const succeeded = Number(byStatus.PROCESSED || 0);
+
+    const decision = selectProvider({
+        method,
+        currency,
+        country,
+        healthByProvider: {
+            PINELABS: { successRate: percentage(succeeded, total), transactions: total }
+        }
+    });
+
+    let failover = null;
+    if (paymentId) {
+        const payment = await PineLabsPayment.findOne({ where: { uuid: paymentId } });
+        if (!payment) {
+            throw new ApiError(HTTP_STATUS.NOT_FOUND, 'Payment not found.');
+        }
+
+        const webhookReceived = (await ProviderWebhookEvent.count({
+            where: {
+                providerPaymentId: payment.nxPayPaymentId || '__none__',
+                status: 'PROCESSED'
+            }
+        })) > 0;
+
+        failover = {
+            paymentId: payment.uuid,
+            status: payment.status,
+            ...evaluateFailover({ payment, webhookReceived })
+        };
+    }
+
+    return res.status(HTTP_STATUS.OK).json(
+        new ApiResponse(HTTP_STATUS.OK, { decision, failover }, 'Routing preview generated successfully.')
+    );
 });
 
 export { REFUND_STATUSES, IN_FLIGHT, TERMINAL_SUCCESS };

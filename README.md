@@ -223,12 +223,83 @@ Responsive React + Tailwind SPA with a desktop sidebar that becomes a mobile dra
 
 ---
 
+## Phase 2 — what was implemented
+
+### 1. Smart Provider Routing
+
+`src/securepay/router.js`, backed by the capability registry in
+`src/securepay/providerRegistry.js`.
+
+`selectProvider({ method, currency, country })` ranks only **integrated and eligible**
+providers, using live success rate first and latency as a tie-breaker. When nothing is
+eligible it returns `NO_ELIGIBLE_PROVIDER` instead of guessing.
+
+`evaluateFailover({ payment, webhookReceived })` implements the rule from the brief:
+
+| Payment state | Failover | Recommended action |
+| --- | --- | --- |
+| No prior attempt | allowed | `PROCEED` |
+| `PROCESSED` / `REFUND_*` | refused | `NONE` (already settled) |
+| `FAILED` / `CANCELLED` / `EXPIRED` | allowed | `RETRY_WITH_ROUTER` |
+| `PENDING`/`AUTHORIZED` with a provider attempt, no terminal webhook | **refused** | `CHECK_PAYMENT_STATUS_FIRST` |
+| `CREATED`/`PENDING` otherwise | refused | `WAIT_OR_POLL` |
+
+Exposed as `GET /api/securepay/routing/preview` and previewable in the UI.
+
+### 2. Provider latency instrumentation
+
+All 12 outbound Pine Labs calls now go through `src/Services/Pinelabs/httpClient.js`,
+which times every request (including failures) into a rolling in-process window
+(`src/securepay/providerMetrics.js`).
+
+`GET /api/securepay/providers/health` returns `latencyMs`, `latencyP95Ms`,
+`latencySamples` and `providerErrorRate` alongside the database-derived success rate, and
+states the window explicitly. **Limitation:** latency is per-process and resets on restart;
+multi-instance deployments need a shared store.
+
+### 3. Reconciliation Center
+
+`src/securepay/reconciliation.js` + `reconciliation_runs` / `reconciliation_exceptions`.
+
+The matcher is a **pure function** so every exception type is unit tested:
+
+| Type | Meaning |
+| --- | --- |
+| `MATCH` | Present and equal on both sides |
+| `AMOUNT_MISMATCH` | Amounts differ (difference recorded) |
+| `STATUS_MISMATCH` | Statuses differ |
+| `MISSING_PROVIDER` | In our ledger, absent from the report |
+| `MISSING_INTERNAL` | In the report, absent from our ledger |
+| `DUPLICATE` | Same reference on either side more than once |
+| `SETTLEMENT_MISMATCH` | Reported net differs from expected net |
+
+Exception workflow: `OPEN → INVESTIGATING → RESOLVED`, or `IGNORE`, via
+`PATCH /api/securepay/reconciliation/exceptions/:uuid`, with every step written to the
+centralized audit log.
+
+**Honesty note:** no real settlement file is connected. A simulated report is generated
+that deliberately injects discrepancies on *distinct* rows, the run is stored with
+`source: 'SIMULATED'`, and the exact injected changes are recorded on the run. The UI labels
+these runs. `SETTLEMENT_MISMATCH` requires an *expected net settlement* (fee data), which is
+not modelled yet, so it is neither injected nor detected.
+
+### 4. Return-URL callback now uses the event engine
+
+The callback previously assigned `payment.status` and `order.pluralStatus` directly. It now
+routes both through the state machine (`applyInternalEvent`) and writes a `CALLBACK_RECEIVED`
+timeline event, so an out-of-order callback can no longer regress a settled payment.
+
+> Remaining hardening: the callback handler still bypasses signature verification in
+> non-production, unlike the webhook endpoint. Left as-is so a dev checkout flow keeps
+> working; it should be split into real/mock endpoints like the webhook was.
+
 ## Verification performed
 
 | Check | Result |
 | --- | --- |
-| `npm test` (unit + module-graph smoke) | **31/31 pass** |
-| End-to-end against the real MySQL database and a real HTTP server | **31/31 pass** |
+| `npm test` (unit + module-graph smoke) | **59/59 pass** |
+| Phase 1 end-to-end against the real MySQL database and a real HTTP server | **31/31 pass** |
+| Phase 2 end-to-end (routing, failover, reconciliation, workflow, latency) | **30/30 pass** |
 | Server boot smoke (`/`, ops route auth, mock webhook route) | pass |
 | `client` production build (`vite build`) | pass |
 | Dev proxy integration (frontend origin → backend API) | pass |
@@ -253,11 +324,9 @@ Temporary fixtures were removed afterwards.
 
 Honest status — these are **not** built, and no dummy data is shown for them in the UI:
 
-**Phase 2** — Reconciliation Center (internal vs provider report vs settlement, exception
-workflow), Smart Provider Routing (health-aware selection with the rule that a payment is
-never blindly failed over while its outcome is unknown), provider latency instrumentation,
-refunds/payouts execution, and the callback controller being routed through the event engine
-(it currently updates state directly rather than via the state machine/timeline).
+**Phase 2 leftovers** — refunds/payouts execution (the `REFUND_*`/`PAYOUT_*` states and
+events exist, but no refund/payout API), a real provider settlement-file import, and fee/
+net-settlement modelling (needed before `SETTLEMENT_MISMATCH` can be detected in practice).
 
 **Phase 3** — KYC journey timeline, liveness/face-match/document-OCR adapter abstractions,
 bank verification provider abstraction, bill payments (mock provider first), international

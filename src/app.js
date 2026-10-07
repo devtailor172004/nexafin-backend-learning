@@ -27,6 +27,7 @@ import privatePasswordRoute from './routes/Admin/PrivatePassword/privatePassword
 import notificationRoute from './routes/Admin/Notifications/notification.route.js';
 import pineLabsRoute from './routes/Payment/PineLabs/pineLabs.route.js';
 import securePayOpsRoute from './routes/SecurePay/ops.route.js';
+import securePayReconciliationRoute from './routes/SecurePay/reconciliation.route.js';
 import { globalLimiter, digilockerLimiter } from './middlewares/rateLimiter.js';
 import './models/Otp.js';
 import './models/Product.js';
@@ -45,6 +46,8 @@ import './models/IdempotencyKey.js';
 import './models/ProviderWebhookEvent.js';
 import './models/PaymentEvent.js';
 import './models/AuditLog.js';
+import './models/ReconciliationRun.js';
+import './models/ReconciliationException.js';
 import { requestLogger } from './middlewares/requestLogger.js';
 
 
@@ -106,6 +109,7 @@ app.use('/api/admin/private-password', privatePasswordRoute);
 app.use('/api/admin/notifications', notificationRoute);
 app.use('/api/payment/nxpay', pineLabsRoute);
 app.use('/api/securepay', securePayOpsRoute);
+app.use('/api/securepay/reconciliation', securePayReconciliationRoute);
 
 app.get('/public/api/digilocker/callback', digilockerLimiter, digilockerCallback);
 

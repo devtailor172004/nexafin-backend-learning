@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { endpoints } from '../lib/api.js';
 import { Badge, Card, ErrorNotice, EmptyState, Spinner, StatCard } from '../components/ui.jsx';
-import { percent, formatCurrency, formatNumber, formatSeconds } from '../lib/format.js';
+import { percent, formatCurrency, formatNumber, formatSeconds, formatDateTime } from '../lib/format.js';
 
 const REFRESH_MS = 20000;
 
@@ -143,12 +143,37 @@ export default function Dashboard() {
                 </Card>
             </div>
 
-            {data?.reconciliation && !data.reconciliation.implemented && (
-                <Card title="Reconciliation Center" subtitle="Planned for the next phase">
-                    <p className="text-xs text-slate-400">
-                        The Reconciliation Center (internal ledger vs provider report vs settlement) is scoped for Phase 2.
-                        No exception figures are shown to avoid displaying numbers that are not backed by real data.
-                    </p>
+            {data?.reconciliation?.implemented && (
+                <Card
+                    title="Reconciliation Center"
+                    subtitle="Open exceptions across all reconciliation runs"
+                    actions={data.reconciliation.latestRun ? (
+                        <Badge value={data.reconciliation.latestRun.source === 'SIMULATED' ? 'PENDING' : 'PROCESSED'} />
+                    ) : null}
+                >
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                        <StatCard
+                            label="Open exceptions"
+                            value={formatNumber(data.reconciliation.openExceptions)}
+                            tone={data.reconciliation.openExceptions ? 'bad' : 'good'}
+                        />
+                        <StatCard label="Amount mismatch" value={formatNumber(data.reconciliation.byType?.AMOUNT_MISMATCH)} />
+                        <StatCard label="Status mismatch" value={formatNumber(data.reconciliation.byType?.STATUS_MISMATCH)} />
+                        <StatCard label="Duplicates" value={formatNumber(data.reconciliation.byType?.DUPLICATE)} />
+                    </div>
+
+                    {data.reconciliation.latestRun ? (
+                        <p className="mt-3 text-[11px] text-slate-500">
+                            Latest run: {data.reconciliation.latestRun.matchedCount} matched,{' '}
+                            {data.reconciliation.latestRun.exceptionCount} exception(s), completed{' '}
+                            {formatDateTime(data.reconciliation.latestRun.completedAt)}
+                            {data.reconciliation.latestRun.source === 'SIMULATED' && ' — from a SIMULATED provider report'}
+                        </p>
+                    ) : (
+                        <p className="mt-3 text-[11px] text-slate-500">
+                            No reconciliation run yet. Open the Reconciliation page to compare the internal ledger with a provider report.
+                        </p>
+                    )}
                 </Card>
             )}
         </div>

@@ -11,6 +11,8 @@ import { getValidCachedPineLabsToken } from '../Token/pineLabsToken.controller.j
 import { plGetOrderDetails } from '../../../../Services/Pinelabs/pinelabs.service.js';
 import { normalizePineLabsStatus, updatePaymentDetailsFromResponse } from '../../../../utils/pineLabsHelper.js';
 import { mergeMaybeJson } from '../../../../utils/jsonColumn.js';
+import { applyInternalEvent, recordPaymentEvent } from '../../../../securepay/eventEngine.js';
+import { canTransition, mapProviderEventToInternal } from '../../../../securepay/stateMachine.js';
 
 /**
  * @desc    Handle NxPay payment return URL callback
@@ -84,7 +86,17 @@ export const handlePineLabsPaymentCallback = asyncHandler(async (req, res) => {
     // 8. Update Order + Payments
     await sequelize.transaction(async (t) => {
         // Update Order
-        order.pluralStatus = normalizePineLabsStatus(orderDetails.status || status);
+        // The order status also moves through the state machine so an
+        // out-of-order return-URL callback cannot regress a settled order.
+        const orderStatus = normalizePineLabsStatus(orderDetails.status || status);
+        if (canTransition(order.pluralStatus, orderStatus)) {
+            order.pluralStatus = orderStatus;
+        } else {
+            logger.warn(
+                `Callback: refusing order transition ${order.pluralStatus} -> ${orderStatus} for order ${order_id}.`
+            );
+        }
+
         order.rawOrderResponse = mergeMaybeJson(order.rawOrderResponse, {
             callback: {
                 ...callbackData,
@@ -94,6 +106,18 @@ export const handlePineLabsPaymentCallback = asyncHandler(async (req, res) => {
             latestStatusCheck: orderDetails
         });
         await order.save({ transaction: t });
+
+        await recordPaymentEvent({
+            orderId: order.id,
+            eventType: 'CALLBACK_RECEIVED',
+            providerEventType: `CALLBACK_${status}`,
+            source: 'CALLBACK',
+            statusFrom: null,
+            statusTo: order.pluralStatus,
+            message: `Return-URL callback received (${status})`,
+            metadata: { signatureVerified: true },
+            transaction: t
+        });
 
         // Get payments
         const paymentsList = Array.isArray(orderDetails.payments) ? orderDetails.payments : [];
@@ -133,8 +157,8 @@ export const handlePineLabsPaymentCallback = asyncHandler(async (req, res) => {
                 continue;
             }
 
-            // Update payment
-            payment.status = normalizePineLabsStatus(pinePayment.status || orderDetails.status || status);
+            // Update provider/audit fields. The status itself is applied by the
+            // state machine below rather than assigned directly.
             payment.signature = signature;
             payment.isSignatureVerified = true;
             payment.rawResponse = mergeMaybeJson(payment.rawResponse, {
@@ -148,6 +172,23 @@ export const handlePineLabsPaymentCallback = asyncHandler(async (req, res) => {
 
             updatePaymentDetailsFromResponse(payment, pinePayment);
             await payment.save({ transaction: t });
+
+            const providerStatus = normalizePineLabsStatus(
+                pinePayment.status || orderDetails.status || status
+            );
+
+            await applyInternalEvent({
+                payment,
+                internalEvent: mapProviderEventToInternal(`PAYMENT_${providerStatus}`),
+                source: 'CALLBACK',
+                providerEventType: `CALLBACK_${status}`,
+                message: `Status applied from return-URL callback (${providerStatus})`,
+                metadata: {
+                    callbackStatus: status,
+                    latestStatusCheckStatus: pinePayment.status ?? null
+                },
+                transaction: t
+            });
         }
     });
 

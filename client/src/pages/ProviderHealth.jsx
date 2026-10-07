@@ -1,7 +1,95 @@
 import { useCallback, useEffect, useState } from 'react';
 import { endpoints } from '../lib/api.js';
-import { Badge, Card, EmptyState, ErrorNotice, Spinner, StatCard } from '../components/ui.jsx';
+import { Badge, Button, Card, EmptyState, ErrorNotice, Field, Select, Spinner, StatCard } from '../components/ui.jsx';
 import { formatNumber, formatSeconds, percent } from '../lib/format.js';
+
+const METHODS = ['', 'UPI', 'CARD', 'NETBANKING'];
+const CURRENCIES = ['', 'INR', 'USD', 'GBP', 'AED', 'SGD'];
+const COUNTRIES = ['', 'IN', 'US', 'GB', 'AE', 'SG'];
+
+function RoutingPreview() {
+    const [method, setMethod] = useState('UPI');
+    const [currency, setCurrency] = useState('INR');
+    const [country, setCountry] = useState('IN');
+    const [decision, setDecision] = useState(null);
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState(null);
+
+    const preview = async () => {
+        setBusy(true);
+        setError(null);
+        try {
+            const params = new URLSearchParams();
+            if (method) params.set('method', method);
+            if (currency) params.set('currency', currency);
+            if (country) params.set('country', country);
+
+            const response = await endpoints.routingPreview(`?${params.toString()}`);
+            setDecision(response.data.decision);
+        } catch (err) {
+            setError(err.message || 'Failed to preview routing.');
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    return (
+        <Card title="Smart Provider Routing" subtitle="Preview which provider the router would select">
+            <div className="grid gap-3 sm:grid-cols-4">
+                <Field label="Method">
+                    <Select value={method} onChange={(e) => setMethod(e.target.value)}>
+                        {METHODS.map((value) => <option key={value || 'any'} value={value}>{value || 'Any'}</option>)}
+                    </Select>
+                </Field>
+                <Field label="Currency">
+                    <Select value={currency} onChange={(e) => setCurrency(e.target.value)}>
+                        {CURRENCIES.map((value) => <option key={value || 'any'} value={value}>{value || 'Any'}</option>)}
+                    </Select>
+                </Field>
+                <Field label="Country">
+                    <Select value={country} onChange={(e) => setCountry(e.target.value)}>
+                        {COUNTRIES.map((value) => <option key={value || 'any'} value={value}>{value || 'Any'}</option>)}
+                    </Select>
+                </Field>
+                <div className="flex items-end">
+                    <Button onClick={preview} disabled={busy} className="w-full">{busy ? 'Checking…' : 'Preview route'}</Button>
+                </div>
+            </div>
+
+            <ErrorNotice message={error} />
+
+            {decision && (
+                <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+                    {decision.selected ? (
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                                <p className="text-[11px] uppercase tracking-wider text-slate-500">Selected provider</p>
+                                <p className="mt-0.5 text-sm font-semibold text-slate-100">{decision.selected.displayName}</p>
+                                <p className="mt-0.5 text-[11px] text-slate-500">
+                                    {decision.selected.methods.join(', ')} · {decision.selected.currencies.join(', ')}
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <Badge value={decision.selected.health} />
+                                <span className="text-xs text-slate-400">{percent(decision.selected.successRate)} success</span>
+                            </div>
+                        </div>
+                    ) : (
+                        <p className="text-xs text-amber-300">
+                            No eligible provider ({decision.reason}). No payment method/currency/country combination is
+                            integrated for this requirement, so the router refuses rather than guessing.
+                        </p>
+                    )}
+                </div>
+            )}
+
+            <p className="mt-3 text-[11px] text-slate-500">
+                Failover policy: a payment is never moved to another provider while its outcome is unknown —
+                the status must be checked first. Only terminally failed payments may be retried elsewhere.
+            </p>
+        </Card>
+    );
+}
 
 export default function ProviderHealth() {
     const [data, setData] = useState(null);
@@ -63,23 +151,35 @@ export default function ProviderHealth() {
                                 <StatCard label="Webhook delay" value={formatSeconds(provider.metrics.avgWebhookDelaySeconds)} tone="info" />
                             </div>
 
+                            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                                <StatCard
+                                    label="Avg latency"
+                                    value={provider.metrics.latencyMs === null ? '—' : `${provider.metrics.latencyMs} ms`}
+                                    hint={provider.metrics.latencyMs === null ? 'no calls yet' : undefined}
+                                    tone="info"
+                                />
+                                <StatCard
+                                    label="p95 latency"
+                                    value={provider.metrics.latencyP95Ms === null ? '—' : `${provider.metrics.latencyP95Ms} ms`}
+                                />
+                                <StatCard label="Samples" value={formatNumber(provider.metrics.latencySamples)} hint="rolling window" />
+                                <StatCard
+                                    label="Call error rate"
+                                    value={provider.metrics.providerErrorRate === null ? '—' : percent(provider.metrics.providerErrorRate)}
+                                    tone={provider.metrics.providerErrorRate ? 'warn' : 'default'}
+                                />
+                            </div>
+
                             <div className="mt-4 space-y-1.5 text-xs text-slate-500">
                                 <p>Integrated: {provider.integrated ? 'Yes' : 'No'} · Enabled: {provider.enabled ? 'Yes' : 'No'}</p>
                                 <p>Refunds: {provider.supportsRefunds ? 'Supported' : 'Not supported'} · Pre-auth: {provider.supportsPreAuth ? 'Supported' : 'Not supported'}</p>
-                                <p>Latency measurement: {provider.metrics.latencyMs === null ? 'not yet instrumented (Phase 2)' : `${provider.metrics.latencyMs} ms`}</p>
                             </div>
                         </Card>
                     ))}
                 </div>
             )}
 
-            <Card title="Smart Provider Routing" subtitle="Planned for the next phase">
-                <p className="text-xs text-slate-400">
-                    The capability registry that will back routing (methods, countries, currencies per provider) is already in place.
-                    The router itself — health-aware selection and the rule that a payment is never blindly failed over while its
-                    outcome is unknown — is Phase 2 work.
-                </p>
-            </Card>
+            <RoutingPreview />
         </div>
     );
 }

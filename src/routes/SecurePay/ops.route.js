@@ -7,7 +7,8 @@ import {
     getPaymentTimeline,
     explainPayment,
     getCustomerOverview,
-    streamLiveEvents
+    streamLiveEvents,
+    previewProviderRouting
 } from '../../controllers/SecurePay/ops.controller.js';
 
 const router = express.Router();
@@ -25,6 +26,7 @@ router.get('/providers/health', verifyAdmin, getProviderHealth);
 router.get('/payments/:uuid/timeline', verifyAdmin, getPaymentTimeline);
 router.get('/payments/:uuid/explain', verifyAdmin, explainPayment);
 router.get('/customers/:uuid/overview', verifyAdmin, getCustomerOverview);
+router.get('/routing/preview', verifyAdmin, previewProviderRouting);
 
 // SSE: authenticates via ?token=<JWT>
 router.get('/stream', streamLiveEvents);

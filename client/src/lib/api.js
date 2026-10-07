@@ -102,7 +102,8 @@ export async function apiFetch(path, { method = 'GET', body, idempotencyKey, sig
 export const api = {
     get: (path, options) => apiFetch(path, { ...options, method: 'GET' }),
     post: (path, body, options) => apiFetch(path, { ...options, method: 'POST', body }),
-    put: (path, body, options) => apiFetch(path, { ...options, method: 'PUT', body })
+    put: (path, body, options) => apiFetch(path, { ...options, method: 'PUT', body }),
+    patch: (path, body, options) => apiFetch(path, { ...options, method: 'PATCH', body })
 };
 
 export const endpoints = {
@@ -115,6 +116,15 @@ export const endpoints = {
     paymentTimeline: (uuid) => api.get(`/api/securepay/payments/${uuid}/timeline`),
     explainPayment: (uuid) => api.get(`/api/securepay/payments/${uuid}/explain`),
     customerOverview: (uuid) => api.get(`/api/securepay/customers/${uuid}/overview`),
+
+    routingPreview: (query) => api.get(`/api/securepay/routing/preview${query}`),
+
+    reconciliationSummary: () => api.get('/api/securepay/reconciliation/summary'),
+    reconciliationRuns: (query = '') => api.get(`/api/securepay/reconciliation/runs${query}`),
+    reconciliationRun: (uuid) => api.get(`/api/securepay/reconciliation/runs/${uuid}`),
+    createReconciliationRun: (body) => api.post('/api/securepay/reconciliation/runs', body),
+    reconciliationExceptions: (query = '') => api.get(`/api/securepay/reconciliation/exceptions${query}`),
+    updateReconciliationException: (uuid, body) => api.patch(`/api/securepay/reconciliation/exceptions/${uuid}`, body),
 
     kycList: (status = 'Pending') => api.get(`/api/admin/kyc?status=${encodeURIComponent(status)}&limit=25`),
     kycApprove: (uuid, { status, reason, privatePassword }) => api.put(`/api/admin/kyc/${uuid}/status`, {
