@@ -17,8 +17,25 @@ export default defineConfig(({ mode }) => {
                 '/api': {
                     target,
                     changeOrigin: true,
-                    // SSE must not be buffered.
                     configure: (proxy) => {
+                        /*
+                         * The backend enforces a CORS allow-list (CORS_ORIGINS).
+                         * A browser sends `Origin: http://localhost:5173` and the
+                         * proxy would forward it verbatim, so the backend would
+                         * treat a same-origin dev request as cross-origin and
+                         * reject it with "CORS blocked".
+                         *
+                         * Stripping Origin/Referer makes the proxied call look like
+                         * the server-to-server request it actually is. This only
+                         * affects local development; a deployed frontend on another
+                         * origin still needs to be listed in CORS_ORIGINS.
+                         */
+                        proxy.on('proxyReq', (proxyReq) => {
+                            proxyReq.removeHeader('origin');
+                            proxyReq.removeHeader('referer');
+                        });
+
+                        // SSE must not be buffered.
                         proxy.on('proxyRes', (proxyRes) => {
                             if (String(proxyRes.headers['content-type'] || '').includes('text/event-stream')) {
                                 proxyRes.headers['cache-control'] = 'no-cache, no-transform';
