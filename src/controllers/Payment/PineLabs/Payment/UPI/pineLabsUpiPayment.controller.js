@@ -14,15 +14,26 @@ import { getClientIp } from '../../../../../utils/getClientIp.js';
 import { plCreateUpiPayment } from '../../../../../Services/Pinelabs/pinelabs.service.js';
 import { normalizePineLabsStatus } from '../../../../../utils/pineLabsHelper.js';
 
+import {
+    claimIdempotency,
+    markIdempotencyCompleted,
+    markIdempotencyUnknown
+} from '../../../../../utils/idempotency.js';
+
 
 /**
  * @desc    Initiate UPI Intent Payment with optional QR support
  * @route   POST /api/payment/pinelabs/order/:orderId/upi/payments
  * @access  Private (User)
  */
+
 export const createPineLabsUpiIntentPayment = asyncHandler(async (req, res) => {
     const ipAddress = getClientIp(req);
     const { orderId } = req.params;
+
+    // verifyToken has already run on the route.
+    const currentUser = await getAuthenticatedUser(req);
+    const userId = currentUser.id;
 
     const { useQr = false } = req.body;
 
@@ -34,11 +45,12 @@ export const createPineLabsUpiIntentPayment = asyncHandler(async (req, res) => {
     }
 
     /*
-     * 1. Retrieve the local order from the database
+     * 1. Retrieve order WITH ownership check.
      */
     const order = await PineLabsOrder.findOne({
         where: {
-            uuid: orderId
+            uuid: orderId,
+            userId
         }
     });
 
@@ -49,9 +61,6 @@ export const createPineLabsUpiIntentPayment = asyncHandler(async (req, res) => {
         );
     }
 
-    /*
-     * Verify Pine Labs order ID exists
-     */
     if (!order.pluralOrderId) {
         throw new ApiError(
             HTTP_STATUS.BAD_REQUEST,
@@ -60,163 +69,232 @@ export const createPineLabsUpiIntentPayment = asyncHandler(async (req, res) => {
     }
 
     /*
-     * 2. Check for an existing duplicate pending UPI payment request
+     * 2. Claim idempotency BEFORE calling Pine Labs.
      */
-    const existingPayment = await PineLabsPayment.findOne({
-        where: {
-            orderId: order.id,
-            paymentMethod: 'UPI',
-            status: 'PENDING'
-        },
-        order: [['createdAt', 'DESC']]
+    const idempotency = await claimIdempotency({
+        req,
+        userId,
+        scope: `pine-labs:upi:${order.id}`,
+        ttlMs: 24 * 60 * 60 * 1000
     });
 
-    if (existingPayment) {
-        const existingIsQr = existingPayment.upi?.qrCode === true;
+    /*
+     * Same request repeated after completion.
+     */
+    if (idempotency.replay) {
+        return res
+            .status(idempotency.responseStatus)
+            .json(idempotency.responseBody);
+    }
 
+    try {
         /*
-         * Return cached payment only if same requested flow (QR vs Intent)
-         * and a challengeUrl exists (meaning Pine Labs responded successfully).
+         * 3. Existing pending UPI payment check.
          */
-        if (existingIsQr === useQr && existingPayment.challengeUrl) {
-            logger.info(`Reusing existing pending UPI payment for order: ${order.id}`);
+        const existingPayment = await PineLabsPayment.findOne({
+            where: {
+                orderId: order.id,
+                paymentMethod: 'UPI',
+                status: 'PENDING'
+            },
+            order: [['createdAt', 'DESC']]
+        });
 
-            const cached = existingPayment.rawResponse || {};
+        if (existingPayment) {
+            const existingIsQr =
+                existingPayment.upi?.qrCode === true;
 
-            // Dynamically generate QR code if it is missing in cached response
-            if (useQr && !cached.image_url) {
-                try {
-                    const qrCodeDataUrl = await QRCode.toDataURL(existingPayment.challengeUrl);
-                    cached.image_url = qrCodeDataUrl;
+            if (
+                existingIsQr === useQr &&
+                existingPayment.challengeUrl
+            ) {
+                const cached = existingPayment.rawResponse || {};
 
-                    existingPayment.rawResponse = cached;
-                    if (existingPayment.upi) {
-                        existingPayment.upi = {
-                            ...existingPayment.upi,
-                            imageUrl: qrCodeDataUrl,
-                            flow: 'UPI_INTENT_WITH_QR'
-                        };
+                if (useQr && !cached.image_url) {
+                    try {
+                        const qrCodeDataUrl =
+                            await QRCode.toDataURL(
+                                existingPayment.challengeUrl
+                            );
+
+                        cached.image_url = qrCodeDataUrl;
+
+                        existingPayment.rawResponse = cached;
+
+                        if (existingPayment.upi) {
+                            existingPayment.upi = {
+                                ...existingPayment.upi,
+                                imageUrl: qrCodeDataUrl,
+                                flow: 'UPI_INTENT_WITH_QR'
+                            };
+                        }
+
+                        await existingPayment.save();
+                    } catch (error) {
+                        logger.error(
+                            'Failed to generate QR code:',
+                            error
+                        );
                     }
-                    await existingPayment.save();
-                } catch (error) {
-                    logger.error('Failed to generate QR code for existing pending payment:', error);
                 }
-            }
 
-            return res.status(HTTP_STATUS.OK).json(
-                new ApiResponse(
+                const responsePayload = new ApiResponse(
                     HTTP_STATUS.OK,
                     {
                         paymentId: existingPayment.uuid,
                         ...cached
                     },
                     'Existing UPI payment found.'
-                )
-            );
-        }
-    }
+                );
 
-    /*
-     * 3. Get cached or new active Access Token
-     */
-    const { accessToken } = await getValidCachedPineLabsToken(order.userId);
+                await markIdempotencyCompleted(
+                    idempotency.record,
+                    {
+                        statusCode: HTTP_STATUS.OK,
+                        responseBody: responsePayload,
+                        resourceId: existingPayment.uuid
+                    }
+                );
 
-    /*
-     * 4. Generate unique merchant payment reference
-     */
-    const merchantPaymentReference = crypto.randomUUID();
-
-    /*
-     * 5. Call Pine Labs API via Service
-     */
-    const responseData = await plCreateUpiPayment({
-        accessToken,
-        pluralOrderId: order.pluralOrderId,
-        amount: Math.round(Number(order.amount) * 100),
-        currency: order.currency || 'INR',
-        merchantPaymentReference,
-        useQr
-    });
-
-    /*
-     * 6. Find payment details in payments array
-     */
-    const pineLabsPayment =
-        responseData.payments?.find(
-            payment => payment.merchant_payment_reference === merchantPaymentReference
-        ) || responseData.payments?.[0];
-
-    if (!pineLabsPayment) {
-        throw new ApiError(
-            HTTP_STATUS.INTERNAL_SERVER_ERROR,
-            'Payment details missing in NxPay response.'
-        );
-    }
-
-    const responseUpiData =
-        pineLabsPayment.payment_option?.upi_details ||
-        pineLabsPayment.payment_option?.upi_data ||
-        {};
-
-    let imageUrl = responseData.image_url || null;
-
-    if (useQr) {
-        const intentUrl = responseData.challenge_url || pineLabsPayment.challenge_url || (responseData.payments?.[0]?.challenge_url);
-
-        if (!imageUrl && intentUrl) {
-            try {
-                const qrCodeDataUrl = await QRCode.toDataURL(intentUrl);
-                imageUrl = qrCodeDataUrl;
-                responseData.image_url = qrCodeDataUrl;
-            } catch (error) {
-                logger.error('Failed to generate QR code from intent URL:', error);
+                return res
+                    .status(HTTP_STATUS.OK)
+                    .json(responsePayload);
             }
         }
-    }
 
-    const flow = useQr && imageUrl
-        ? 'UPI_INTENT_WITH_QR'
-        : 'UPI_INTENT';
+        /*
+         * 4. Get provider token.
+         */
+        const { accessToken } =
+            await getValidCachedPineLabsToken(userId);
 
-    /*
-     * 7. Save payment details and update Order status in a Database Transaction
-     */
-    let payment;
-    await sequelize.transaction(async (t) => {
-        payment = await PineLabsPayment.create({
-            orderId: order.id,
-            nxPayOrderId: responseData.order_id,
-            nxPayPaymentId: pineLabsPayment.id,
-            merchantPaymentReference: pineLabsPayment.merchant_payment_reference,
-            amount: Number(pineLabsPayment.payment_amount?.value || 0) / 100,
-            currency: pineLabsPayment.payment_amount?.currency || 'INR',
-            paymentMethod: 'UPI',
-            status: normalizePineLabsStatus(pineLabsPayment.status || 'PENDING'),
-            challengeUrl: responseData.challenge_url || null,
-            upi: {
-                txnMode: responseUpiData.txn_mode || 'INTENT',
-                qrCode: useQr,
-                challengeUrl: responseData.challenge_url || null,
-                imageUrl,
-                flow
-            },
-            acquirer: pineLabsPayment.acquirer_data || null,
-            rawResponse: responseData,
-            ipAddress: ipAddress
-        }, { transaction: t });
+        /*
+         * 5. Generate merchant payment reference.
+         */
+        const merchantPaymentReference =
+            crypto.randomUUID();
 
-        // Sync order status with the response order status
-        if (responseData.status) {
-            order.pluralStatus = normalizePineLabsStatus(responseData.status);
-            await order.save({ transaction: t });
+        /*
+         * 6. Call Pine Labs.
+         */
+        const responseData =
+            await plCreateUpiPayment({
+                accessToken,
+                pluralOrderId: order.pluralOrderId,
+                amount: Math.round(Number(order.amount) * 100),
+                currency: order.currency || 'INR',
+                merchantPaymentReference,
+                useQr
+            });
+
+        const pineLabsPayment =
+            responseData.payments?.find(
+                payment =>
+                    payment.merchant_payment_reference ===
+                    merchantPaymentReference
+            ) ||
+            responseData.payments?.[0];
+
+        if (!pineLabsPayment) {
+            throw new ApiError(
+                HTTP_STATUS.INTERNAL_SERVER_ERROR,
+                'Payment details missing in NxPay response.'
+            );
         }
-    });
 
-    /*
-     * 8. Return response to the client (mirrors Pine Labs response)
-     */
-    return res.status(HTTP_STATUS.OK).json(
-        new ApiResponse(
+        const responseUpiData =
+            pineLabsPayment.payment_option?.upi_details ||
+            pineLabsPayment.payment_option?.upi_data ||
+            {};
+
+        let imageUrl =
+            responseData.image_url || null;
+
+        if (useQr) {
+            const intentUrl =
+                responseData.challenge_url ||
+                pineLabsPayment.challenge_url ||
+                responseData.payments?.[0]?.challenge_url;
+
+            if (!imageUrl && intentUrl) {
+                imageUrl =
+                    await QRCode.toDataURL(intentUrl);
+
+                responseData.image_url = imageUrl;
+            }
+        }
+
+        const flow =
+            useQr && imageUrl
+                ? 'UPI_INTENT_WITH_QR'
+                : 'UPI_INTENT';
+
+        /*
+         * 7. Save payment + order atomically.
+         */
+        let payment;
+
+        await sequelize.transaction(async transaction => {
+            payment =
+                await PineLabsPayment.create(
+                    {
+                        orderId: order.id,
+                        nxPayOrderId:
+                            responseData.order_id,
+                        nxPayPaymentId:
+                            pineLabsPayment.id,
+                        merchantPaymentReference:
+                            pineLabsPayment.merchant_payment_reference,
+                        amount:
+                            Number(
+                                pineLabsPayment.payment_amount?.value ||
+                                0
+                            ) / 100,
+                        currency:
+                            pineLabsPayment.payment_amount?.currency ||
+                            'INR',
+                        paymentMethod: 'UPI',
+                        status:
+                            normalizePineLabsStatus(
+                                pineLabsPayment.status ||
+                                'PENDING'
+                            ),
+                        challengeUrl:
+                            responseData.challenge_url ||
+                            null,
+                        upi: {
+                            txnMode:
+                                responseUpiData.txn_mode ||
+                                'INTENT',
+                            qrCode: useQr,
+                            challengeUrl:
+                                responseData.challenge_url ||
+                                null,
+                            imageUrl,
+                            flow
+                        },
+                        acquirer:
+                            pineLabsPayment.acquirer_data ||
+                            null,
+                        rawResponse: responseData,
+                        ipAddress
+                    },
+                    { transaction }
+                );
+
+            if (responseData.status) {
+                order.pluralStatus =
+                    normalizePineLabsStatus(
+                        responseData.status
+                    );
+
+                await order.save({
+                    transaction
+                });
+            }
+        });
+
+        const responsePayload = new ApiResponse(
             HTTP_STATUS.OK,
             {
                 paymentId: payment.uuid,
@@ -225,6 +303,34 @@ export const createPineLabsUpiIntentPayment = asyncHandler(async (req, res) => {
             useQr
                 ? 'UPI Intent payment with QR created successfully.'
                 : 'UPI Intent payment created successfully.'
-        )
-    );
+        );
+
+        /*
+         * 8. Mark idempotency completed.
+         */
+        await markIdempotencyCompleted(
+            idempotency.record,
+            {
+                statusCode: HTTP_STATUS.OK,
+                responseBody: responsePayload,
+                resourceId: payment.uuid
+            }
+        );
+
+        return res
+            .status(HTTP_STATUS.OK)
+            .json(responsePayload);
+
+    } catch (error) {
+        /*
+         * Provider/database outcome may be unknown.
+         * Never blindly retry a money-moving request.
+         */
+        await markIdempotencyUnknown(
+            idempotency.record,
+            error.message
+        );
+
+        throw error;
+    }
 });
