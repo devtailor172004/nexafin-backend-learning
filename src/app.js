@@ -26,6 +26,7 @@ import ipRoute from './routes/Admin/IP/ip.route.js';
 import privatePasswordRoute from './routes/Admin/PrivatePassword/privatePassword.route.js';
 import notificationRoute from './routes/Admin/Notifications/notification.route.js';
 import pineLabsRoute from './routes/Payment/PineLabs/pineLabs.route.js';
+import securePayOpsRoute from './routes/SecurePay/ops.route.js';
 import { globalLimiter, digilockerLimiter } from './middlewares/rateLimiter.js';
 import './models/Otp.js';
 import './models/Product.js';
@@ -39,6 +40,11 @@ import './models/Notifications.js';
 import './models/PineLabsToken.js';
 import './models/PineLabsOrder.js';
 import './models/PineLabsPayment.js';
+// SecurePay Lab models (idempotency, webhook ledger, timeline, audit)
+import './models/IdempotencyKey.js';
+import './models/ProviderWebhookEvent.js';
+import './models/PaymentEvent.js';
+import './models/AuditLog.js';
 import { requestLogger } from './middlewares/requestLogger.js';
 
 
@@ -72,7 +78,10 @@ app.use(cors({
     credentials: true,
 }));
 app.use(compression());
+// Raw body is required for provider webhook signature verification.
 app.use('/api/payment/nxpay/webhook', express.raw({ type: '*/*' }));
+// Separate raw-body path for the local mock webhook (no signature required).
+app.use('/api/payment/nxpay/mock/webhook', express.raw({ type: '*/*' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }))
 
@@ -96,6 +105,7 @@ app.use('/api/admin/ip', ipRoute);
 app.use('/api/admin/private-password', privatePasswordRoute);
 app.use('/api/admin/notifications', notificationRoute);
 app.use('/api/payment/nxpay', pineLabsRoute);
+app.use('/api/securepay', securePayOpsRoute);
 
 app.get('/public/api/digilocker/callback', digilockerLimiter, digilockerCallback);
 

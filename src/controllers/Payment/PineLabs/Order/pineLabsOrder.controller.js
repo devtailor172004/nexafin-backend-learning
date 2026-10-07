@@ -16,6 +16,9 @@ import { getValidCachedPineLabsToken } from '../Token/pineLabsToken.controller.j
 import { getClientIp } from '../../../../utils/getClientIp.js';
 import { plCreateOrder, plCaptureAuthorizedOrder, plCancelAuthorizedOrder, plGetOrderDetails } from '../../../../Services/Pinelabs/pinelabs.service.js';
 import { normalizePineLabsStatus, updatePaymentDetailsFromResponse } from '../../../../utils/pineLabsHelper.js';
+import { recordPaymentEvent } from '../../../../securepay/eventEngine.js';
+import { PAYMENT_EVENT } from '../../../../securepay/stateMachine.js';
+import { mergeMaybeJson } from '../../../../utils/jsonColumn.js';
 
 
 // =============================================================================
@@ -83,68 +86,133 @@ export const createPaymentOrder = asyncHandler(async (req, res) => {
     const merchantOrderRef = `ORD_${Date.now()}_${userId}`;
     const orderNotes = notes || `Order payment for user ${userId}`;
 
-    // Get active Pine Labs access token
-    const { accessToken } = await getValidCachedPineLabsToken(userId);
-
-    // Call Pine Labs Create Order API via Service
-    const orderData = await plCreateOrder({
-        accessToken,
-        merchantOrderRef,
-        orderAmount,
-        notes: orderNotes,
-        callbackUrl,
-        failureCallbackUrl,
-        customer: {
-            customer_id: customerId,
-            email_id: customerEmail,
-            first_name: firstName,
-            last_name: lastName,
-            mobile_number: mobileNumber,
-            country_code: countryCode
-        },
-        preAuth: preAuth === true || preAuth === 'true'
+    /*
+     * Claim idempotency BEFORE the provider call, so a client retry after a
+     * network timeout cannot create a second Pine Labs order.
+     */
+    const idempotency = await claimIdempotency({
+        req,
+        userId,
+        scope: 'pine-labs:order:create',
+        ttlMs: 24 * 60 * 60 * 1000
     });
 
-
-    if (!orderData || !orderData.order_id) {
-        throw new ApiError(
-            HTTP_STATUS.BAD_REQUEST,
-            "Invalid response received from NxPay order creation service."
-        );
+    if (idempotency.replay) {
+        return res
+            .status(idempotency.responseStatus)
+            .json(idempotency.responseBody);
     }
 
-    // Extract client IP address securely
-    const ipAddress = getClientIp(req);
+    try {
+        // Get active Pine Labs access token
+        const { accessToken } = await getValidCachedPineLabsToken(userId);
 
-    // Save order details to the database atomically
-    let createdOrder;
-    await sequelize.transaction(async (t) => {
-        createdOrder = await PineLabsOrder.create({
-            userId: userId,
-            merchantOrderRef: merchantOrderRef,
-            pluralOrderId: orderData.order_id,
-            amount: Number(amount),
-            currency: 'INR',
-            callbackUrl: callbackUrl,
-            failureCallbackUrl: failureCallbackUrl,
+        // Call Pine Labs Create Order API via Service
+        const orderData = await plCreateOrder({
+            accessToken,
+            merchantOrderRef,
+            orderAmount,
             notes: orderNotes,
-            allowedPaymentMethods: orderData.allowed_payment_methods || [],
-            customerId: orderData.purchase_details?.customer?.customer_id,
-            customerEmail: customerEmail,
-            pluralStatus: orderData.status || 'CREATED',
-            preAuth: orderData.pre_auth ?? false,
-            rawOrderResponse: orderData,
-            ipAddress: ipAddress
-        }, { transaction: t });
-    });
+            callbackUrl,
+            failureCallbackUrl,
+            customer: {
+                customer_id: customerId,
+                email_id: customerEmail,
+                first_name: firstName,
+                last_name: lastName,
+                mobile_number: mobileNumber,
+                country_code: countryCode
+            },
+            preAuth: preAuth === true || preAuth === 'true'
+        });
 
-    return res.status(HTTP_STATUS.OK).json(
-        new ApiResponse(
+        if (!orderData || !orderData.order_id) {
+            throw new ApiError(
+                HTTP_STATUS.BAD_REQUEST,
+                "Invalid response received from NxPay order creation service."
+            );
+        }
+
+        // Extract client IP address securely
+        const ipAddress = getClientIp(req);
+
+        // Save order details to the database atomically
+        let createdOrder;
+        await sequelize.transaction(async (t) => {
+            createdOrder = await PineLabsOrder.create({
+                userId: userId,
+                merchantOrderRef: merchantOrderRef,
+                pluralOrderId: orderData.order_id,
+                amount: Number(amount),
+                currency: 'INR',
+                callbackUrl: callbackUrl,
+                failureCallbackUrl: failureCallbackUrl,
+                notes: orderNotes,
+                allowedPaymentMethods: orderData.allowed_payment_methods || [],
+                customerId: orderData.purchase_details?.customer?.customer_id,
+                customerEmail: customerEmail,
+                pluralStatus: orderData.status || 'CREATED',
+                preAuth: orderData.pre_auth ?? false,
+                rawOrderResponse: orderData,
+                ipAddress: ipAddress
+            }, { transaction: t });
+
+            await recordPaymentEvent({
+                orderId: createdOrder.id,
+                eventType: 'ORDER_CREATED',
+                source: 'API',
+                statusFrom: null,
+                statusTo: createdOrder.pluralStatus,
+                message: 'Local order created',
+                actorId: userId,
+                metadata: { merchantOrderRef, providerOrderId: orderData.order_id },
+                transaction: t
+            });
+
+            await recordPaymentEvent({
+                orderId: createdOrder.id,
+                eventType: PAYMENT_EVENT.PAYMENT_CREATED,
+                source: 'API',
+                statusFrom: null,
+                statusTo: createdOrder.pluralStatus,
+                message: 'Provider order created',
+                actorId: userId,
+                transaction: t
+            });
+        });
+
+        const responsePayload = new ApiResponse(
             HTTP_STATUS.OK,
             createdOrder,
             "NxPay payment order initialized successfully!"
-        )
-    );
+        );
+
+        // Persist the outcome so a retry with the same key replays this response.
+        await markIdempotencyCompleted(
+            idempotency.record,
+            {
+                statusCode: HTTP_STATUS.OK,
+                responseBody: responsePayload,
+                resourceId: createdOrder.uuid
+            }
+        );
+
+        return res
+            .status(HTTP_STATUS.OK)
+            .json(responsePayload);
+
+    } catch (error) {
+        /*
+         * The provider/database outcome may be unknown here.
+         * Never blindly retry a money-moving request.
+         */
+        await markIdempotencyUnknown(
+            idempotency.record,
+            error.message
+        );
+
+        throw error;
+    }
 });
 
 export const capturePineLabsAuthorizedOrder = asyncHandler(async (req, res) => {
@@ -490,10 +558,9 @@ export const cancelPineLabsOrder = asyncHandler(async (req, res) => {
 
             payment.status = responsePayment?.status || 'CANCELLED';
             payment.cancelledAt = now;
-            payment.rawResponse = {
-                ...(payment.rawResponse || {}),
+            payment.rawResponse = mergeMaybeJson(payment.rawResponse, {
                 cancelResponse: responseData
-            };
+            });
             await payment.save({ transaction: t });
         }
     });
@@ -651,70 +718,99 @@ export const initiatePayment = asyncHandler(async (req, res) => {
     const merchantOrderRef = `ORD_${Date.now()}_${userId}`;
     const orderNotes = notes || `Order payment for user ${userId}`;
 
-    // Get active Pine Labs access token
-    const { accessToken } = await getValidCachedPineLabsToken(userId);
-
-    const activePreAuth = preAuth ?? pre_auth;
-    const isPreAuth = activePreAuth === true || activePreAuth === 'true';
-
-    // Call Pine Labs Create Order API via Service
-    const orderData = await plCreateOrder({
-        accessToken,
-        merchantOrderRef,
-        orderAmount,
-        notes: orderNotes,
-        callbackUrl,
-        failureCallbackUrl,
-        customer: {
-            customer_id: customerId,
-            email_id: customerEmail,
-            first_name: firstName,
-            last_name: lastName,
-            mobile_number: mobileNumber,
-            country_code: countryCode
-        },
-        preAuth: isPreAuth
+    /*
+     * Claim idempotency BEFORE the provider call so a retried checkout
+     * initialisation cannot create a second Pine Labs order.
+     */
+    const idempotency = await claimIdempotency({
+        req,
+        userId,
+        scope: 'pine-labs:order:initiate',
+        ttlMs: 24 * 60 * 60 * 1000
     });
 
-    if (!orderData || !orderData.order_id) {
-        throw new ApiError(
-            HTTP_STATUS.BAD_REQUEST,
-            "Invalid response received from NxPay order creation service."
-        );
+    if (idempotency.replay) {
+        return res
+            .status(idempotency.responseStatus)
+            .json(idempotency.responseBody);
     }
 
-    // Extract client IP address securely
-    const ipAddress = getClientIp(req);
+    try {
+        // Get active Pine Labs access token
+        const { accessToken } = await getValidCachedPineLabsToken(userId);
 
-    // Save order details to the database atomically
-    let createdOrder;
-    await sequelize.transaction(async (t) => {
-        createdOrder = await PineLabsOrder.create({
-            userId: userId,
-            merchantOrderRef: merchantOrderRef,
-            pluralOrderId: orderData.order_id,
-            amount: Number(amount),
-            currency: 'INR',
-            callbackUrl: callbackUrl,
-            failureCallbackUrl: failureCallbackUrl,
+        const activePreAuth = preAuth ?? pre_auth;
+        const isPreAuth = activePreAuth === true || activePreAuth === 'true';
+
+        // Call Pine Labs Create Order API via Service
+        const orderData = await plCreateOrder({
+            accessToken,
+            merchantOrderRef,
+            orderAmount,
             notes: orderNotes,
-            allowedPaymentMethods: orderData.allowed_payment_methods || [],
-            customerId: orderData.purchase_details?.customer?.customer_id,
-            customerEmail: customerEmail,
-            pluralStatus: orderData.status || 'CREATED',
-            preAuth: orderData.pre_auth ?? false,
-            rawOrderResponse: orderData,
-            ipAddress: ipAddress
-        }, { transaction: t });
-    });
+            callbackUrl,
+            failureCallbackUrl,
+            customer: {
+                customer_id: customerId,
+                email_id: customerEmail,
+                first_name: firstName,
+                last_name: lastName,
+                mobile_number: mobileNumber,
+                country_code: countryCode
+            },
+            preAuth: isPreAuth
+        });
 
-    // Build the rebranded checkout URL
-    const appUrl = process.env.APP_URL;
-    const checkoutPageBase = process.env.CHECKOUT_PAGE_URL || `${appUrl}/pay`;
-    const paymentUrl = `${checkoutPageBase}/${createdOrder.uuid}`;
+        if (!orderData || !orderData.order_id) {
+            throw new ApiError(
+                HTTP_STATUS.BAD_REQUEST,
+                "Invalid response received from NxPay order creation service."
+            );
+        }
 
-    return res.status(HTTP_STATUS.OK).json(
-        new ApiResponse(
+        // Extract client IP address securely
+        const ipAddress = getClientIp(req);
+
+        // Save order details to the database atomically
+        let createdOrder;
+        await sequelize.transaction(async (t) => {
+            createdOrder = await PineLabsOrder.create({
+                userId: userId,
+                merchantOrderRef: merchantOrderRef,
+                pluralOrderId: orderData.order_id,
+                amount: Number(amount),
+                currency: 'INR',
+                callbackUrl: callbackUrl,
+                failureCallbackUrl: failureCallbackUrl,
+                notes: orderNotes,
+                allowedPaymentMethods: orderData.allowed_payment_methods || [],
+                customerId: orderData.purchase_details?.customer?.customer_id,
+                customerEmail: customerEmail,
+                pluralStatus: orderData.status || 'CREATED',
+                preAuth: orderData.pre_auth ?? false,
+                rawOrderResponse: orderData,
+                ipAddress: ipAddress
+            }, { transaction: t });
+
+            await recordPaymentEvent({
+                orderId: createdOrder.id,
+                eventType: PAYMENT_EVENT.PAYMENT_CREATED,
+                source: 'API',
+                statusFrom: null,
+                statusTo: createdOrder.pluralStatus,
+                message: 'Checkout session initialized',
+                actorId: userId,
+                metadata: { merchantOrderRef },
+                transaction: t
+            });
+        });
+
+        // Build the rebranded checkout URL
+        const appUrl = process.env.APP_URL;
+        const checkoutPageBase = process.env.CHECKOUT_PAGE_URL || `${appUrl}/pay`;
+        const paymentUrl = `${checkoutPageBase}/${createdOrder.uuid}`;
+
+        const responsePayload = new ApiResponse(
             HTTP_STATUS.OK,
             {
                 orderId: createdOrder.uuid,
@@ -724,8 +820,34 @@ export const initiatePayment = asyncHandler(async (req, res) => {
                 paymentUrl: paymentUrl
             },
             "NxPay payment initialized successfully!"
-        )
-    );
+        );
+
+        // Persist the outcome so a retry with the same key replays this response.
+        await markIdempotencyCompleted(
+            idempotency.record,
+            {
+                statusCode: HTTP_STATUS.OK,
+                responseBody: responsePayload,
+                resourceId: createdOrder.uuid
+            }
+        );
+
+        return res
+            .status(HTTP_STATUS.OK)
+            .json(responsePayload);
+
+    } catch (error) {
+        /*
+         * The provider/database outcome may be unknown here.
+         * Never blindly retry a money-moving request.
+         */
+        await markIdempotencyUnknown(
+            idempotency.record,
+            error.message
+        );
+
+        throw error;
+    }
 });
 
 

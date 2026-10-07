@@ -3,6 +3,7 @@ import pkg from 'sequelize';
 const { DataTypes } = pkg;
 
 import sequelize from '../config/db.js';
+import { jsonColumnGetter } from '../utils/jsonColumn.js';
 
 const IdempotencyKey = sequelize.define(
     'IdempotencyKey',
@@ -57,7 +58,10 @@ const IdempotencyKey = sequelize.define(
 
         responseBody: {
             type: DataTypes.JSON,
-            allowNull: true
+            allowNull: true,
+            // Stored as text in this deployment: always hand back a parsed
+            // object so an idempotent replay returns the original response.
+            get: jsonColumnGetter('responseBody')
         },
 
         resourceId: {

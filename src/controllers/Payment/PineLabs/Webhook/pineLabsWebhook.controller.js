@@ -1,425 +1,355 @@
-import crypto from 'crypto';
 import sequelize from '../../../../config/db.js';
 import PineLabsOrder from '../../../../models/PineLabsOrder.js';
 import PineLabsPayment from '../../../../models/PineLabsPayment.js';
 import { asyncHandler } from '../../../../utils/asyncHandler.js';
 import { ApiError } from '../../../../utils/ApiError.js';
+import { ApiResponse } from '../../../../utils/ApiResponse.js';
 import { HTTP_STATUS } from '../../../../utils/httpStatus.js';
 import logger from '../../../../utils/logger.js';
+import { normalizePineLabsStatus } from '../../../../utils/pineLabsHelper.js';
+import { mergeMaybeJson } from '../../../../utils/jsonColumn.js';
+import {
+    verifyPineLabsWebhookSignature,
+    checkWebhookTimestamp
+} from '../../../../Services/Pinelabs/webhookSignature.js';
+import {
+    claimWebhookEvent,
+    resolveDuplicateWebhook,
+    bumpWebhookAttempt,
+    markWebhookProcessed,
+    markWebhookFailed,
+    sanitizeWebhookPayload
+} from '../../../../securepay/webhookLedger.js';
+import { recordPaymentEvent, applyInternalEvent } from '../../../../securepay/eventEngine.js';
+import {
+    mapProviderEventToInternal,
+    statusForEvent,
+    canTransition,
+    PAYMENT_EVENT
+} from '../../../../securepay/stateMachine.js';
+
+const PROVIDER = 'PINELABS';
 
 /**
- * Verify Pine Labs webhook signature.
+ * Applies a verified provider webhook to local business state.
  *
- * Signed content:
- * webhook-id.webhook-timestamp.raw-body
+ * Flow:
+ *   sanitize -> find order -> per payment: set provider fields -> state machine
+ *   -> timeline event -> mark ledger processed
  *
- * Secret key is Base64 encoded.
+ * @returns {Promise<{orderId:number|null, paymentIds:number[], internalEvent:string}>}
  */
-const verifyPineLabsWebhookSignature = ({
-    webhookId,
-    webhookTimestamp,
-    webhookSignature,
-    rawBody
-}) => {
-    const secretKey = process.env.PINE_LABS_CLIENT_SECRET;
-    const isTestMode = process.env.NODE_ENV !== 'production';
+const applyWebhookToBusinessState = async ({ payload, webhookId, eventType, isMock = false }) => {
+    const internalEvent = mapProviderEventToInternal(eventType);
+    const targetPaymentStatus = statusForEvent(internalEvent);
+    const providerOrderId = payload?.data?.order_id;
 
-    // Local UAT/development testing bypass in non-production
-    if (
-        isTestMode &&
-        (!secretKey ||
-            secretKey === 'YOUR_CLIENT_SECRET' ||
-            String(secretKey).trim() === '')
-    ) {
-        return true;
+    if (!providerOrderId) {
+        throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'NxPay webhook order_id is missing.');
     }
 
-    if (!secretKey || String(secretKey).trim() === '') {
-        throw new Error(
-            'PINE_LABS_CLIENT_SECRET is not configured.'
-        );
+    const order = await PineLabsOrder.findOne({ where: { pluralOrderId: providerOrderId } });
+
+    if (!order) {
+        throw new ApiError(HTTP_STATUS.NOT_FOUND, `NxPay order not found for webhook order_id ${providerOrderId}.`);
     }
 
-    if (!webhookId || !webhookTimestamp || !webhookSignature || !rawBody) {
-        logger.warn('[PineLabs Webhook Debug] Missing required signature verification components');
-        return false;
-    }
+    const providerPayments = Array.isArray(payload?.data?.payments) ? payload.data.payments : [];
+    const providerOrderStatus = normalizePineLabsStatus(payload?.data?.status || eventType);
+    const paymentIds = [];
+    let anyTransitionApplied = false;
 
-    const body = (Buffer.isBuffer(rawBody)
-        ? rawBody.toString('utf8')
-        : String(rawBody)).trimEnd(); // strip trailing \r\n added by curl/clients
-
-    const signedContent =
-        `${webhookId}.${webhookTimestamp}.${body}`;
-
-    let receivedSig = String(webhookSignature || '')
-        .trim()
-        .replace(/^"|"$/g, '');
-
-    // Strip "v1," or any "v<N>," prefix from the signature
-    receivedSig = receivedSig.replace(/^v\d+,/, '');
-
-    // Attempt to verify with different possible representations of the secret key
-    const possibleSecrets = [];
-
-    // 1. Plain UTF-8 string bytes
-    possibleSecrets.push(Buffer.from(secretKey.trim(), 'utf8'));
-
-    // 2. Base64 decoded bytes (fallback/legacy)
-    try {
-        possibleSecrets.push(Buffer.from(secretKey.trim(), 'base64'));
-    } catch (e) {
-        // ignore
-    }
-
-    // 3. Hex decoded bytes (as client secret is in hex)
-    try {
-        if (/^[0-9a-fA-F]+$/.test(secretKey.trim())) {
-            possibleSecrets.push(Buffer.from(secretKey.trim(), 'hex'));
+    await sequelize.transaction(async (transaction) => {
+        // ---- Order level -------------------------------------------------
+        if (providerOrderStatus && canTransition(order.pluralStatus, providerOrderStatus)) {
+            order.pluralStatus = providerOrderStatus;
+            anyTransitionApplied = true;
         }
-    } catch (e) {
-        // ignore
-    }
+        order.rawOrderResponse = mergeMaybeJson(order.rawOrderResponse, {
+            lastWebhookId: webhookId,
+            lastWebhookEvent: eventType,
+            lastWebhookReceivedAt: new Date().toISOString()
+        });
+        await order.save({ transaction });
 
-    logger.info(`[PineLabs Webhook Debug] Body Length: ${body.length}`);
-    logger.info(`[PineLabs Webhook Debug] Signed Content: "${signedContent}"`);
-    logger.info(`[PineLabs Webhook Debug] Received Signature (Raw): "${webhookSignature}"`);
-    logger.info(`[PineLabs Webhook Debug] Received Signature (Sanitized): "${receivedSig}"`);
+        await recordPaymentEvent({
+            orderId: order.id,
+            eventType: 'WEBHOOK_RECEIVED',
+            providerEventType: eventType,
+            source: 'WEBHOOK',
+            statusFrom: null,
+            statusTo: order.pluralStatus,
+            message: `${eventType} webhook received${isMock ? ' (mock)' : ''}`,
+            providerEventId: webhookId,
+            metadata: { internalEvent, isMock },
+            transaction
+        });
 
-    for (const secretBytes of possibleSecrets) {
-        const generatedSignature = crypto
-            .createHmac('sha256', secretBytes)
-            .update(signedContent, 'utf8')
-            .digest('base64');
+        // ---- Payment level -----------------------------------------------
+        for (const providerPayment of providerPayments) {
+            let payment = null;
 
-        const generatedBuffer = Buffer.from(generatedSignature, 'utf8');
-        const receivedBuffer = Buffer.from(receivedSig, 'utf8');
-
-        if (generatedBuffer.length === receivedBuffer.length) {
-            if (crypto.timingSafeEqual(generatedBuffer, receivedBuffer)) {
-                logger.info('[PineLabs Webhook Debug] Signature Match Result: true');
-                return true;
+            if (providerPayment.id) {
+                payment = await PineLabsPayment.findOne({
+                    where: { nxPayPaymentId: providerPayment.id, orderId: order.id },
+                    transaction
+                });
             }
-        }
-    }
 
-    logger.warn('[PineLabs Webhook Debug] Signature Match Result: false (failed all key encodings)');
-    return false;
+            if (!payment && providerPayment.merchant_payment_reference) {
+                payment = await PineLabsPayment.findOne({
+                    where: { merchantPaymentReference: providerPayment.merchant_payment_reference, orderId: order.id },
+                    transaction
+                });
+            }
+
+            if (!payment) {
+                payment = await PineLabsPayment.findOne({
+                    where: { orderId: order.id, status: 'PENDING' },
+                    order: [['createdAt', 'DESC']],
+                    transaction
+                });
+            }
+
+            if (!payment) {
+                logger.warn(`No local payment matched for webhook ${webhookId} (order ${providerOrderId}).`);
+                continue;
+            }
+
+            // Provider fields (does not change status yet).
+            payment.nxPayOrderId = providerOrderId;
+            if (providerPayment.id) payment.nxPayPaymentId = providerPayment.id;
+
+            if (providerPayment.payment_amount?.value !== undefined) {
+                payment.amount = Number(providerPayment.payment_amount.value) / 100;
+            }
+            if (providerPayment.payment_amount?.currency) {
+                payment.currency = providerPayment.payment_amount.currency;
+            }
+            if (providerPayment.acquirer_data) {
+                payment.acquirer = providerPayment.acquirer_data;
+            }
+            if (providerPayment.error_code) payment.errorCode = providerPayment.error_code;
+            if (providerPayment.error_message) payment.errorMessage = providerPayment.error_message;
+
+            await payment.save({ transaction });
+
+            const result = await applyInternalEvent({
+                payment,
+                internalEvent,
+                source: 'WEBHOOK',
+                providerEventType: eventType,
+                providerEventId: webhookId,
+                message: providerPayment.error_message || `${eventType} applied from provider webhook`,
+                metadata: { providerPaymentStatus: providerPayment.status || null, isMock },
+                transaction
+            });
+
+            if (result.applied) anyTransitionApplied = true;
+            paymentIds.push(payment.id);
+        }
+
+        // No payments in the payload: still move the order and log the event.
+        if (!providerPayments.length) {
+            await recordPaymentEvent({
+                orderId: order.id,
+                eventType: internalEvent,
+                providerEventType: eventType,
+                source: 'WEBHOOK',
+                statusFrom: null,
+                statusTo: targetPaymentStatus,
+                message: `${eventType} applied at order level (no payments in payload)`,
+                providerEventId: webhookId,
+                transaction
+            });
+        }
+    });
+
+    return { orderId: order.id, paymentIds, internalEvent, anyTransitionApplied };
 };
 
+/**
+ * Shared webhook processing pipeline.
+ */
+const processWebhook = async ({ req, eventType, payload, webhookId, webhookTimestamp, signatureVerified, isMock }) => {
+    const providerOrderId = payload?.data?.order_id || null;
+    const sanitizedPayload = sanitizeWebhookPayload(payload);
+    const internalEvent = mapProviderEventToInternal(eventType);
+
+    const { record, isDuplicate } = await claimWebhookEvent({
+        provider: PROVIDER,
+        webhookId,
+        eventType,
+        internalEvent,
+        providerOrderId,
+        webhookTimestamp,
+        signatureVerified,
+        isMock,
+        sanitizedPayload
+    });
+
+    if (isDuplicate) {
+        const decision = resolveDuplicateWebhook(record);
+        logger.info(`Duplicate webhook ${webhookId} (${decision}).`);
+
+        if (decision === 'IGNORE_DUPLICATE') {
+            return {
+                httpStatus: HTTP_STATUS.OK,
+                body: { success: true, duplicate: true, message: `Webhook ${eventType} already processed.` }
+            };
+        }
+
+        if (decision === 'IN_PROGRESS') {
+            return {
+                httpStatus: HTTP_STATUS.OK,
+                body: { success: true, duplicate: true, message: `Webhook ${eventType} is already being processed.` }
+            };
+        }
+
+        // Previous attempt failed -> retry with an incremented attempt count.
+        await bumpWebhookAttempt(record);
+    }
+
+    try {
+        const result = await applyWebhookToBusinessState({ payload, webhookId, eventType, isMock });
+
+        await markWebhookProcessed(record, {
+            localOrderId: result.orderId,
+            localPaymentId: result.paymentIds[0] ?? null,
+            internalEvent: result.internalEvent
+        });
+
+        logger.info(`Webhook ${eventType} processed successfully (${webhookId}).`);
+
+        return {
+            httpStatus: HTTP_STATUS.OK,
+            body: {
+                success: true,
+                message: `${eventType} webhook processed successfully.`,
+                internalEvent: result.internalEvent,
+                matchedPayments: result.paymentIds.length
+            }
+        };
+    } catch (error) {
+        // Order not found is a data/timing issue: mark failed and let the
+        // provider retry later. Everything else is a hard failure too.
+        await markWebhookFailed(record, error);
+
+        if (error instanceof ApiError) throw error;
+        throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, `Webhook processing failed: ${error.message}`);
+    }
+};
 
 /**
- * @desc    Handle Pine Labs webhook events
- * @route   POST /api/payment/pinelabs/webhook
- * @access  Public
+ * @desc    Handle real Pine Labs webhook events (signature ALWAYS verified)
+ * @route   POST /api/payment/nxpay/webhook
+ * @access  Public (signature protected)
  */
-export const handlePineLabsWebhook = asyncHandler(
-    async (req, res) => {
+export const handlePineLabsWebhook = asyncHandler(async (req, res) => {
+    const webhookId = req.headers['webhook-id'];
+    const webhookTimestamp = req.headers['webhook-timestamp'];
+    const webhookSignature = req.headers['webhook-signature'];
 
-        // 1. Get signature headers
-        const webhookId = req.headers['webhook-id'];
-        const webhookTimestamp = req.headers['webhook-timestamp'];
-        const webhookSignature = req.headers['webhook-signature'];
-
-        // req.body must be raw Buffer
-        const rawBody = req.body;
-
-        const isTestMode = process.env.NODE_ENV !== 'production';
-
-        if (!webhookId || !webhookTimestamp || !webhookSignature) {
-            if (!isTestMode) {
-                throw new ApiError(
-                    HTTP_STATUS.BAD_REQUEST,
-                    'Missing NxPay webhook signature headers.'
-                );
-            }
-            logger.warn('Missing NxPay webhook signature headers. Bypassing in non-production.');
-        }
-
-        const webhookTimestampUnix = Number(webhookTimestamp);
-        let webhookTimestampDate = null;
-
-        if (Number.isFinite(webhookTimestampUnix)) {
-            const timestampMs = webhookTimestampUnix > 9999999999 ? webhookTimestampUnix : webhookTimestampUnix * 1000;
-            webhookTimestampDate = new Date(timestampMs).toISOString();
-        } else {
-            const parsed = Date.parse(webhookTimestamp);
-            if (!Number.isNaN(parsed)) {
-                webhookTimestampDate = new Date(parsed).toISOString();
-            }
-        }
-
-
-        // 2. Validate timestamp
-        let webhookTime = Number(webhookTimestamp);
-        if (isNaN(webhookTime)) {
-            // Normalize non-standard date format: "2026-08-29 10:07:50:750" → "2026-08-29T10:07:50.750"
-            const normalized = String(webhookTimestamp)
-                .trim()
-                .replace(' ', 'T')              // space → T separator
-                .replace(/:(\d{1,4})$/, '.$1'); // last :ms → .ms
-            const parsedDate = Date.parse(normalized);
-            if (!isNaN(parsedDate)) {
-                webhookTime = Math.floor(parsedDate / 1000);
-            }
-        } else if (webhookTime > 9999999999) {
-            // If the timestamp is in milliseconds (13 digits), convert it to seconds
-            webhookTime = Math.floor(webhookTime / 1000);
-        }
-
-        // ─── Timestamp log (use Unix Seconds value for test signature generator) ───
-        logger.info(
-            `[PineLabs Webhook] Received ► ` +
-            `webhook-id: ${webhookId} | ` +
-            `webhook-timestamp (raw): ${webhookTimestamp} | ` +
-            `webhook-timestamp (unix seconds): ${webhookTime} | ` +
-            `webhook-timestamp (readable): ${webhookTimestampDate}`
-        );
-        // ─────────────────────────────────────────────────────────────────────────
-
-        const currentTime = Math.floor(Date.now() / 1000);
-        const maxAgeInSeconds = 10 * 60; // 10 minutes — allow for network delays
-
-        if (
-            !Number.isFinite(webhookTime) ||
-            Math.abs(currentTime - webhookTime) > maxAgeInSeconds
-        ) {
-            if (!isTestMode) {
-                throw new ApiError(
-                    HTTP_STATUS.UNAUTHORIZED,
-                    'Expired or invalid NxPay webhook timestamp.'
-                );
-            }
-            logger.warn(`Expired/invalid webhook timestamp bypassed in non-production: ${webhookTimestamp}`);
-        }
-
-
-        // 3. Verify signature
-        const isValidSignature =
-            verifyPineLabsWebhookSignature({
-                webhookId,
-                webhookTimestamp,
-                webhookSignature,
-                rawBody
-            });
-
-        if (!isValidSignature) {
-            logger.warn(
-                `Invalid Pine Labs webhook signature: ${webhookId}`
-            );
-
-            if (!isTestMode) {
-                throw new ApiError(
-                    HTTP_STATUS.UNAUTHORIZED,
-                    'Invalid NxPay webhook signature.'
-                );
-            }
-            logger.info(
-                'Bypassing invalid Pine Labs webhook signature check in non-production.'
-            );
-        }
-
-
-        // 4. Parse JSON after verification
-        let webhookPayload;
-
-        try {
-            webhookPayload = JSON.parse(
-                rawBody.toString('utf8')
-            );
-        } catch (error) {
-            throw new ApiError(
-                HTTP_STATUS.BAD_REQUEST,
-                'Invalid NxPay webhook JSON.'
-            );
-        }
-
-
-        const {
-            event_type,
-            data
-        } = webhookPayload;
-
-        if (!event_type || !data) {
-            throw new ApiError(
-                HTTP_STATUS.BAD_REQUEST,
-                'Invalid NxPay webhook payload.'
-            );
-        }
-
-
-        // 5. Handle ORDER_AUTHORIZED
-        if (event_type === 'ORDER_AUTHORIZED') {
-
-            const nxPayOrderId = data.order_id;
-            const orderStatus = String(
-                data.status || 'AUTHORIZED'
-            ).toUpperCase();
-
-            if (!nxPayOrderId) {
-                throw new ApiError(
-                    HTTP_STATUS.BAD_REQUEST,
-                    'NxPay webhook order_id is missing.'
-                );
-            }
-
-
-            // Find local order
-            const order = await PineLabsOrder.findOne({
-                where: {
-                    pluralOrderId: nxPayOrderId
-                }
-            });
-
-            if (!order) {
-                throw new ApiError(
-                    HTTP_STATUS.NOT_FOUND,
-                    'NxPay order not found.'
-                );
-            }
-
-
-            const payments = Array.isArray(data.payments)
-                ? data.payments
-                : [];
-
-
-            // 6. Update database atomically
-            await sequelize.transaction(
-                async (transaction) => {
-
-                    // Update order
-                    order.pluralStatus = orderStatus;
-
-                    order.rawOrderResponse = {
-                        ...(order.rawOrderResponse || {}),
-                        webhook: webhookPayload,
-                        lastWebhookId: webhookId,
-                        lastWebhookEvent: event_type,
-                        lastWebhookReceivedAt:
-                            new Date().toISOString()
-                    };
-
-                    await order.save({ transaction });
-
-
-                    // Update related payment
-                    for (const pinePayment of payments) {
-
-                        let payment = null;
-
-                        // Find by Pine Labs payment ID
-                        if (pinePayment.id) {
-                            payment =
-                                await PineLabsPayment.findOne({
-                                    where: {
-                                        nxPayPaymentId:
-                                            pinePayment.id,
-                                        orderId: order.id
-                                    },
-                                    transaction
-                                });
-                        }
-
-                        // Fallback by merchant reference
-                        if (
-                            !payment &&
-                            pinePayment.merchant_payment_reference
-                        ) {
-                            payment =
-                                await PineLabsPayment.findOne({
-                                    where: {
-                                        merchantPaymentReference:
-                                            pinePayment
-                                                .merchant_payment_reference,
-                                        orderId: order.id
-                                    },
-                                    transaction
-                                });
-                        }
-
-                        // Fallback to latest pending payment
-                        if (!payment) {
-                            payment =
-                                await PineLabsPayment.findOne({
-                                    where: {
-                                        orderId: order.id,
-                                        status: 'PENDING'
-                                    },
-                                    order: [['createdAt', 'DESC']],
-                                    transaction
-                                });
-                        }
-
-                        if (!payment) {
-                            logger.warn(
-                                `Payment not found for order ${nxPayOrderId}`
-                            );
-
-                            continue;
-                        }
-
-                        // Update payment
-                        payment.nxPayOrderId = nxPayOrderId;
-                        payment.status = String(
-                            pinePayment.status || orderStatus
-                        ).toUpperCase();
-
-                        if (pinePayment.id) {
-                            payment.nxPayPaymentId =
-                                pinePayment.id;
-                        }
-
-                        if (pinePayment.payment_amount?.value !== undefined) {
-                            payment.amount =
-                                Number(pinePayment.payment_amount.value) / 100;
-                        }
-
-                        if (pinePayment.payment_amount?.currency) {
-                            payment.currency =
-                                pinePayment.payment_amount.currency;
-                        }
-
-                        if (pinePayment.acquirer_data) {
-                            payment.acquirer =
-                                pinePayment.acquirer_data;
-                        }
-
-                        payment.rawResponse = {
-                            ...(payment.rawResponse || {}),
-                            webhook: {
-                                eventType: event_type,
-                                webhookId,
-                                webhookTimestamp,
-                                data: pinePayment
-                            }
-                        };
-
-                        await payment.save({ transaction });
-                    }
-                }
-            );
-
-
-            logger.info(
-                `ORDER_AUTHORIZED processed successfully: ${nxPayOrderId}`
-            );
-
-            return res.status(HTTP_STATUS.OK).json({
-                success: true,
-                message: 'ORDER_AUTHORIZED webhook processed successfully.'
-            });
-        }
-
-
-        // Acknowledge other webhook events
-        logger.info(
-            `Unhandled Pine Labs webhook event: ${event_type}`
-        );
-
-        return res.status(HTTP_STATUS.OK).json({
-            success: true,
-            message: `Webhook ${event_type} received.`
-        });
+    if (!webhookId || !webhookTimestamp || !webhookSignature) {
+        throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Missing NxPay webhook signature headers.');
     }
-);
+
+    const rawBody = req.body;
+
+    // 1. Timestamp freshness.
+    const { fresh, webhookTime, ageSeconds } = checkWebhookTimestamp(webhookTimestamp);
+    if (!fresh) {
+        throw new ApiError(
+            HTTP_STATUS.UNAUTHORIZED,
+            `Expired or invalid NxPay webhook timestamp (age: ${ageSeconds ?? 'unknown'}s).`
+        );
+    }
+
+    logger.info(`[Webhook] ${webhookId} | ts=${webhookTimestamp} | unix=${webhookTime}`);
+
+    // 2. Signature (fail closed).
+    const isValidSignature = verifyPineLabsWebhookSignature({
+        webhookId,
+        webhookTimestamp,
+        webhookSignature,
+        rawBody
+    });
+
+    if (!isValidSignature) {
+        throw new ApiError(HTTP_STATUS.UNAUTHORIZED, 'Invalid NxPay webhook signature.');
+    }
+
+    // 3. Parse only after security checks.
+    let payload;
+    try {
+        payload = JSON.parse(rawBody.toString('utf8'));
+    } catch {
+        throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Invalid NxPay webhook JSON.');
+    }
+
+    const eventType = payload?.event_type;
+    if (!eventType || !payload?.data) {
+        throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Invalid NxPay webhook payload.');
+    }
+
+    const { httpStatus, body } = await processWebhook({
+        req,
+        eventType,
+        payload,
+        webhookId,
+        webhookTimestamp,
+        signatureVerified: true,
+        isMock: false
+    });
+
+    return res.status(httpStatus).json(body);
+});
+
+/**
+ * @desc    Development/sandbox mock webhook — NO signature required.
+ *          Disabled entirely when NODE_ENV=production so it can never be an
+ *          environment-based security bypass on a live system.
+ * @route   POST /api/payment/nxpay/mock/webhook
+ * @access  Local development only
+ */
+export const handleMockPineLabsWebhook = asyncHandler(async (req, res) => {
+    if (process.env.NODE_ENV === 'production') {
+        throw new ApiError(HTTP_STATUS.FORBIDDEN, 'Mock webhooks are disabled in production.');
+    }
+
+    const payload = req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)
+        ? req.body
+        : (() => {
+            try {
+                return JSON.parse(Buffer.isBuffer(req.body) ? req.body.toString('utf8') : String(req.body));
+            } catch {
+                throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Invalid mock webhook JSON.');
+            }
+        })();
+
+    const eventType = payload?.event_type;
+    if (!eventType || !payload?.data) {
+        throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Invalid mock webhook payload.');
+    }
+
+    // Deterministic id so re-sending the same mock event exercises dedupe.
+    const webhookId = String(
+        req.headers['webhook-id'] ||
+        payload.event_id ||
+        `mock_${eventType}_${payload.data.order_id || 'unknown'}_${payload.data.status || 'na'}`
+    );
+
+    const { httpStatus, body } = await processWebhook({
+        req,
+        eventType,
+        payload,
+        webhookId,
+        webhookTimestamp: req.headers['webhook-timestamp'] || Math.floor(Date.now() / 1000),
+        signatureVerified: false,
+        isMock: true
+    });
+
+    return res.status(httpStatus).json(body);
+});
+
+export { applyWebhookToBusinessState };

@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+@theme {
+    --color-ink-950: #070b16;
+    --color-ink-900: #0b1120;
+    --color-ink-850: #111827;
+    --color-ink-800: #16203a;
+    --color-ink-700: #1f2a44;
+    --color-brand-400: #38bdf8;
+    --color-brand-500: #0ea5e9;
+    --color-brand-600: #0284c7;
+}
+
+html,
+body,
+#root {
+    height: 100%;
+}
+
+body {
+    margin: 0;
+    background-color: var(--color-ink-950);
+    color: #e2e8f0;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Thin scrollbars that match the console theme */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #334155 transparent;
+}
+
+*::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+*::-webkit-scrollbar-thumb {
+    background-color: #334155;
+    border-radius: 9999px;
+}
+
+@keyframes punch {
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-punch {
+    animation: punch 0.28s ease-out;
+}

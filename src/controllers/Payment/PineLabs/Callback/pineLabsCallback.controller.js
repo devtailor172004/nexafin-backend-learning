@@ -10,6 +10,7 @@ import { verifyPineLabsCallbackSignature } from '../../../../Services/Pinelabs/s
 import { getValidCachedPineLabsToken } from '../Token/pineLabsToken.controller.js';
 import { plGetOrderDetails } from '../../../../Services/Pinelabs/pinelabs.service.js';
 import { normalizePineLabsStatus, updatePaymentDetailsFromResponse } from '../../../../utils/pineLabsHelper.js';
+import { mergeMaybeJson } from '../../../../utils/jsonColumn.js';
 
 /**
  * @desc    Handle NxPay payment return URL callback
@@ -84,15 +85,14 @@ export const handlePineLabsPaymentCallback = asyncHandler(async (req, res) => {
     await sequelize.transaction(async (t) => {
         // Update Order
         order.pluralStatus = normalizePineLabsStatus(orderDetails.status || status);
-        order.rawOrderResponse = {
-            ...(order.rawOrderResponse || {}),
+        order.rawOrderResponse = mergeMaybeJson(order.rawOrderResponse, {
             callback: {
                 ...callbackData,
                 signatureVerified: true,
                 receivedAt: new Date().toISOString()
             },
             latestStatusCheck: orderDetails
-        };
+        });
         await order.save({ transaction: t });
 
         // Get payments
@@ -137,15 +137,14 @@ export const handlePineLabsPaymentCallback = asyncHandler(async (req, res) => {
             payment.status = normalizePineLabsStatus(pinePayment.status || orderDetails.status || status);
             payment.signature = signature;
             payment.isSignatureVerified = true;
-            payment.rawResponse = {
-                ...(payment.rawResponse || {}),
+            payment.rawResponse = mergeMaybeJson(payment.rawResponse, {
                 callback: {
                     ...callbackData,
                     signatureVerified: true,
                     receivedAt: new Date().toISOString()
                 },
                 latestStatusCheck: pinePayment
-            };
+            });
 
             updatePaymentDetailsFromResponse(payment, pinePayment);
             await payment.save({ transaction: t });

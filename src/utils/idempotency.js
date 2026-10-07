@@ -7,7 +7,11 @@ import IdempotencyKey from '../models/IdempotencyKey.js';
 import { ApiError } from './ApiError.js';
 import { HTTP_STATUS } from './httpStatus.js';
 
-const stableStringify = value => {
+/*
+ * Exported so the hashing rules can be unit tested without touching the
+ * database (see tests/idempotency.test.js).
+ */
+export const stableStringify = value => {
     if (value === null || typeof value !== 'object') {
         return JSON.stringify(value);
     }
@@ -25,7 +29,7 @@ const stableStringify = value => {
         .join(',')}}`;
 };
 
-const buildRequestHash = req => {
+export const buildRequestHash = req => {
     const payload = {
         method: req.method,
         path: req.originalUrl,

@@ -4,10 +4,12 @@ import { verifyToken, parseToken } from '../../../../middlewares/authMiddleware.
 
 const router = express.Router();
 
-// Route to initiate a rebranded payment checkout session
+// Route to initiate a rebranded payment checkout session.
+// The controller mandates an Idempotency-Key so a client retry after a network
+// timeout cannot create a second provider order.
 router.post('/initiate', verifyToken, initiatePayment);
 
-// Route to initialize a payment order in Pine Labs
+// Route to initialize a payment order in Pine Labs (idempotent in the controller)
 router.post('/order', verifyToken, createPaymentOrder);
 
 // Route to get details of a Pine Labs payment order

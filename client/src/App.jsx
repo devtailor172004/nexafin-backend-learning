@@ -1,0 +1,49 @@
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { AuthProvider, useAuth } from './lib/auth.jsx';
+import Layout from './components/Layout.jsx';
+import Login from './pages/Login.jsx';
+import Dashboard from './pages/Dashboard.jsx';
+import LiveOps from './pages/LiveOps.jsx';
+import Payments from './pages/Payments.jsx';
+import ProviderHealth from './pages/ProviderHealth.jsx';
+import Customers from './pages/Customers.jsx';
+import Kyc from './pages/Kyc.jsx';
+import { EmptyState } from './components/ui.jsx';
+
+function RequireAuth({ children }) {
+    const { isAuthenticated } = useAuth();
+    if (!isAuthenticated) {
+        return <Navigate to="/login" replace />;
+    }
+    return children;
+}
+
+function NotFound() {
+    return (
+        <EmptyState
+            title="Page not found"
+            description="Use the navigation to return to a module."
+        />
+    );
+}
+
+export default function App() {
+    return (
+        <AuthProvider>
+            <BrowserRouter>
+                <Routes>
+                    <Route path="/login" element={<Login />} />
+                    <Route element={<RequireAuth><Layout /></RequireAuth>}>
+                        <Route path="/" element={<Dashboard />} />
+                        <Route path="/live" element={<LiveOps />} />
+                        <Route path="/payments" element={<Payments />} />
+                        <Route path="/health" element={<ProviderHealth />} />
+                        <Route path="/customers" element={<Customers />} />
+                        <Route path="/kyc" element={<Kyc />} />
+                        <Route path="*" element={<NotFound />} />
+                    </Route>
+                </Routes>
+            </BrowserRouter>
+        </AuthProvider>
+    );
+}

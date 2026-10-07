@@ -71,13 +71,20 @@ const PineLabsPayment = sequelize.define(
             defaultValue: 'CARD'
         },
 
+        // Mirrors src/securepay/stateMachine.js PAYMENT_STATUS. The reconcile
+        // script (src/config/syncDb.js) will ALTER the ENUM when values change.
         status: {
             type: DataTypes.ENUM(
+                'CREATED',
                 'PENDING',
                 'AUTHORIZED',
                 'PROCESSED',
                 'CANCELLED',
-                'FAILED'
+                'FAILED',
+                'EXPIRED',
+                'REFUND_PENDING',
+                'REFUNDED',
+                'REFUND_FAILED'
             ),
             allowNull: false,
             defaultValue: 'PENDING'
