@@ -130,7 +130,10 @@ export const endpoints = {
     runSettlement: (body = {}) => api.post('/api/securepay/settlements/run', body),
 
     kycJourney: (uuid) => api.get(`/api/admin/kyc/${uuid}/journey`),
+    kycProfile: (uuid) => api.get(`/api/admin/kyc/${uuid}`),
     kycReviewDocument: (uuid, documentUuid, body) => api.patch(`/api/admin/kyc/${uuid}/documents/${documentUuid}/status`, body),
+    kycLiveness: (uuid, body) => api.post(`/api/admin/kyc/${uuid}/liveness`, body),
+    customerList: (q = '') => api.get(`/api/securepay/customers${q ? `?q=${encodeURIComponent(q)}` : ''}`),
 
     // --- Payment simulator (drives the real merchant APIs) ---
     providerToken: (clientId, clientSecret) => api.post('/api/payment/nxpay/token', { clientId, clientSecret }),

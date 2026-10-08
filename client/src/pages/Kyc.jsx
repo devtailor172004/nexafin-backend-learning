@@ -1,9 +1,26 @@
 import { useCallback, useEffect, useState } from 'react';
 import { endpoints } from '../lib/api.js';
 import { Badge, Button, Card, EmptyState, ErrorNotice, Field, Select, Spinner, TextInput } from '../components/ui.jsx';
+import LivenessCheck from '../components/LivenessCheck.jsx';
 import { formatDateTime } from '../lib/format.js';
 
 const STATUS_OPTIONS = ['Pending', 'Approved', 'Rejected'];
+const TABS = ['Details', 'Journey', 'Liveness'];
+
+function DetailGrid({ entries }) {
+    return (
+        <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
+            {entries.map(([label, value]) => (
+                <div key={label} className="rounded-lg bg-slate-900/60 p-2.5">
+                    <p className="text-[10px] uppercase tracking-wide text-slate-500">{label}</p>
+                    <p className="mt-0.5 break-words font-medium text-slate-200">
+                        {value === null || value === undefined || value === '' ? '—' : String(value)}
+                    </p>
+                </div>
+            ))}
+        </div>
+    );
+}
 
 export default function Kyc() {
     const [status, setStatus] = useState('Pending');
@@ -13,6 +30,7 @@ export default function Kyc() {
     const [notice, setNotice] = useState(null);
 
     const [active, setActive] = useState(null);
+    const [tab, setTab] = useState('Details');
     const [privatePassword, setPrivatePassword] = useState('');
     const [reason, setReason] = useState('');
     const [decision, setDecision] = useState('Approved');
@@ -43,6 +61,7 @@ export default function Kyc() {
         setNotice(null);
         setReason('');
         setJourney(null);
+        setTab('Details');
         setJourneyLoading(true);
         try {
             const response = await endpoints.kycJourney(profile.uuid);
@@ -99,14 +118,83 @@ export default function Kyc() {
         }
     };
 
+    const saveLiveness = async (result) => {
+        if (!active) return;
+        setError(null);
+        setNotice(null);
+        try {
+            const response = await endpoints.kycLiveness(active.uuid, {
+                selfie: result.selfie,
+                passed: result.passed,
+                score: result.score,
+                challenge: result.challenge,
+                captureMs: result.captureMs
+            });
+            setJourney((prev) => (prev ? { ...prev, ...response.data?.journey } : prev));
+            setNotice(`Liveness check saved (score ${response.data?.liveness?.score ?? result.score}/100).`);
+        } catch (err) {
+            setError(err.message || 'Failed to save the liveness result.');
+            throw err;
+        }
+    };
+
     const documents = journey?.steps?.find((s) => s.key === 'DOCUMENTS')?.records || [];
+    const profile = journey?.profile || null;
+
+    const profileEntries = profile ? [
+        ['Full name', profile.fullName],
+        ['Email', profile.email],
+        ['Mobile', profile.mobile],
+        ['Date of birth', profile.dob],
+        ['Role', profile.role],
+        ['KYC status', profile.kyc],
+        ['KYC step', profile.kycStep],
+        ['KYC category', profile.kycCategory],
+        ['Shop name', profile.shopname],
+        ['Company name', profile.companyName],
+        ['Business type', profile.businessType],
+        ['Business category', profile.businessCategory],
+        ['CIN', profile.cin],
+        ['GST number', profile.gstNumber],
+        ['GST legal name', profile.gstLegalName],
+        ['PAN', profile.pan],
+        ['PAN status', profile.panStatus],
+        ['Authority name', profile.authorityFullName],
+        ['Authority email', profile.authorityEmail],
+        ['Authority PAN', profile.authorityPan],
+        ['Authority PAN status', profile.authorityPanStatus],
+        ['Personal address', profile.address],
+        ['City', profile.city],
+        ['State', profile.state],
+        ['Pincode', profile.pincode],
+        ['Registered address', profile.registeredAddress],
+        ['Business address', profile.businessAddress],
+        ['Business city', profile.businessCity],
+        ['Business state', profile.businessState],
+        ['Business pincode', profile.businessPincode],
+        ['Bank name', profile.bankName],
+        ['Account holder', profile.accountHolderName],
+        ['Account number', profile.accountNumberMasked],
+        ['IFSC', profile.ifscCode],
+        ['Branch', profile.branchName],
+        ['DigiLocker', profile.digilockerRegistered ? 'Registered' : 'Not registered'],
+        ['DigiLocker ID', profile.digilockerId],
+        ['DigiLocker verified', profile.digilockerVerifiedAt ? formatDateTime(profile.digilockerVerifiedAt) : null],
+        ['PEP status', profile.pepStatus],
+        ['Blocked', profile.isBlocked ? 'Yes' : 'No'],
+        ['Selfie on file', profile.hasSelfie ? 'Yes' : 'No'],
+        ['Video KYC', profile.hasVideoKyc ? 'Yes' : 'No'],
+        ['Expected sales', profile.expectedSales],
+        ['Submitted', profile.createdAt ? formatDateTime(profile.createdAt) : null],
+        ['Last updated', profile.updatedAt ? formatDateTime(profile.updatedAt) : null]
+    ] : [];
 
     return (
         <div className="space-y-5">
             <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
                     <h1 className="text-lg font-semibold text-slate-100">KYC Review</h1>
-                    <p className="text-xs text-slate-500">Approve or reject merchant KYC submissions</p>
+                    <p className="text-xs text-slate-500">Full applicant details, journey, documents and camera liveness testing</p>
                 </div>
                 <Select value={status} onChange={(e) => setStatus(e.target.value)} className="w-40">
                     {STATUS_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
@@ -118,18 +206,19 @@ export default function Kyc() {
                 <div className="rounded-xl border border-emerald-900/60 bg-emerald-950/30 px-4 py-3 text-sm text-emerald-200">{notice}</div>
             )}
 
-            <Card title={`${status} profiles`} subtitle="Approving a profile unlocks payments for that merchant">
+            <Card title={`${status} profiles`} subtitle="Open Review to see every KYC detail, verify documents and run a liveness test">
                 {loading && profiles.length === 0 ? (
                     <Spinner label="Loading KYC profiles…" />
                 ) : profiles.length === 0 ? (
                     <EmptyState title={`No ${status.toLowerCase()} KYC profiles`} />
                 ) : (
                     <div className="-mx-4 overflow-x-auto sm:mx-0">
-                        <table className="w-full min-w-[640px] text-left text-sm">
+                        <table className="w-full min-w-[720px] text-left text-sm">
                             <thead>
                                 <tr className="border-b border-slate-800 text-[11px] uppercase tracking-wider text-slate-500">
                                     <th className="px-3 py-2 font-medium">Merchant</th>
                                     <th className="px-3 py-2 font-medium">Contact</th>
+                                    <th className="px-3 py-2 font-medium">DOB</th>
                                     <th className="px-3 py-2 font-medium">Business</th>
                                     <th className="px-3 py-2 font-medium">Updated</th>
                                     <th className="px-3 py-2 font-medium">KYC</th>
@@ -141,12 +230,13 @@ export default function Kyc() {
                                     <tr key={profile.uuid} className="border-b border-slate-900/70 last:border-0 hover:bg-slate-900/40">
                                         <td className="px-3 py-2">
                                             <p className="text-slate-200">{profile.fullName}</p>
-                                            <p className="font-mono text-[10px] text-slate-500">{String(profile.uuid).slice(0, 8)}…</p>
+                                            <p className="font-mono text-[10px] text-slate-500">{profile.uuid}</p>
                                         </td>
                                         <td className="px-3 py-2 text-xs text-slate-400">
                                             <p>{profile.email}</p>
                                             <p>{profile.mobile}</p>
                                         </td>
+                                        <td className="px-3 py-2 text-xs text-slate-400">{profile.dob || '—'}</td>
                                         <td className="px-3 py-2 text-xs text-slate-400">{profile.business_type || '—'}</td>
                                         <td className="whitespace-nowrap px-3 py-2 text-xs text-slate-400">{formatDateTime(profile.updatedAt)}</td>
                                         <td className="px-3 py-2"><Badge value={profile.kyc} /></td>
@@ -169,16 +259,52 @@ export default function Kyc() {
             {active && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/60" onClick={() => setActive(null)} />
-                    <form onSubmit={submitDecision} className="relative max-h-[90vh] w-full max-w-lg space-y-4 overflow-y-auto rounded-2xl border border-slate-800 bg-[#0b1120] p-5">
-                        <div>
-                            <h2 className="text-sm font-semibold text-slate-100">Review KYC decision</h2>
-                            <p className="mt-1 text-xs text-slate-500">{active.fullName} · {active.email}</p>
+                    <form onSubmit={submitDecision} className="relative flex max-h-[92vh] w-full max-w-3xl flex-col space-y-4 overflow-hidden rounded-2xl border border-slate-800 bg-[#0b1120] p-5">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div>
+                                <h2 className="text-sm font-semibold text-slate-100">KYC review — {active.fullName}</h2>
+                                <p className="mt-1 text-xs text-slate-500">{active.email} · {active.mobile}</p>
+                                <p className="mt-0.5 font-mono text-[10px] text-slate-600">{active.uuid}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                {journey && <Badge value={journey.kycStatus} />}
+                                <button type="button" className="text-slate-500 hover:text-slate-300" onClick={() => setActive(null)}>✕</button>
+                            </div>
                         </div>
 
-                        <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-950/40 p-3">
+                        {/* Tabs */}
+                        <div className="flex gap-1 border-b border-slate-800 pb-1">
+                            {TABS.map((t) => (
+                                <button
+                                    key={t}
+                                    type="button"
+                                    onClick={() => setTab(t)}
+                                    className={`rounded-t-md px-3 py-1.5 text-xs font-medium transition ${tab === t ? 'bg-slate-800 text-sky-300' : 'text-slate-400 hover:text-slate-200'}`}
+                                >
+                                    {t}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
                             {journeyLoading && <Spinner label="Loading KYC journey…" />}
-                            {journey && (
+
+                            {journey && tab === 'Details' && (
                                 <>
+                                    <div className="flex items-center justify-between">
+                                        <p className="text-xs font-semibold text-slate-300">
+                                            Completion {journey.completionPercent}% ({journey.completed}/{journey.total})
+                                        </p>
+                                        {profile?.kycRejectionReason && (
+                                            <span className="text-[11px] text-rose-300">{profile.kycRejectionReason}</span>
+                                        )}
+                                    </div>
+                                    <DetailGrid entries={profileEntries} />
+                                </>
+                            )}
+
+                            {journey && tab === 'Journey' && (
+                                <div className="space-y-3">
                                     <div className="flex items-center justify-between">
                                         <p className="text-xs font-semibold text-slate-300">
                                             KYC journey · {journey.completionPercent}% complete ({journey.completed}/{journey.total})
@@ -206,13 +332,23 @@ export default function Kyc() {
                                         </div>
                                     )}
 
+                                    {journey.missing?.length > 0 && (
+                                        <div className="rounded border border-amber-900/60 bg-amber-950/20 p-2 text-[11px] text-amber-200">
+                                            <p className="font-semibold">Missing</p>
+                                            <ul className="list-disc pl-4">
+                                                {journey.missing.map((item, index) => <li key={index}>{item}</li>)}
+                                            </ul>
+                                        </div>
+                                    )}
+
                                     {documents.length > 0 && (
-                                        <div className="space-y-1">
+                                        <div className="space-y-1.5">
                                             <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Documents</p>
                                             {documents.map((doc) => (
-                                                <div key={doc.uuid || doc.type} className="flex items-center justify-between gap-2 text-[11px]">
+                                                <div key={doc.uuid || doc.type} className="flex items-center justify-between gap-2 rounded bg-slate-900/50 px-2 py-1.5 text-[11px]">
                                                     <span className="text-slate-300">
                                                         {doc.type} <Badge value={doc.status} />
+                                                        {doc.rejectionReason && <span className="ml-1 text-rose-300">({doc.rejectionReason})</span>}
                                                     </span>
                                                     <div className="flex gap-2">
                                                         <button
@@ -236,36 +372,59 @@ export default function Kyc() {
                                             ))}
                                         </div>
                                     )}
-                                </>
+                                </div>
+                            )}
+
+                            {tab === 'Liveness' && (
+                                <LivenessCheck
+                                    onSave={saveLiveness}
+                                    savedAt={profile?.hasSelfie}
+                                />
                             )}
                         </div>
 
-                        <Field label="Decision">
-                            <Select value={decision} onChange={(e) => setDecision(e.target.value)}>
-                                <option value="Approved">Approved</option>
-                                <option value="Rejected">Rejected</option>
-                            </Select>
-                        </Field>
+                        <div className="space-y-3 border-t border-slate-800 pt-3">
+                            <div className="grid gap-3 sm:grid-cols-2">
+                                <Field label="Decision">
+                                    <Select value={decision} onChange={(e) => setDecision(e.target.value)}>
+                                        <option value="Approved">Approved</option>
+                                        <option value="Rejected">Rejected</option>
+                                    </Select>
+                                </Field>
 
-                        {decision === 'Rejected' && (
-                            <Field label="Rejection reason" hint="Required when rejecting">
-                                <TextInput required value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Documents unreadable" />
-                            </Field>
-                        )}
+                                {decision === 'Rejected' ? (
+                                    <Field label="Rejection reason" hint="Required when rejecting">
+                                        <TextInput required value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Documents unreadable" />
+                                    </Field>
+                                ) : (
+                                    <Field label="Admin private password" hint="Required to authorise KYC changes">
+                                        <TextInput
+                                            type="password"
+                                            required
+                                            value={privatePassword}
+                                            onChange={(e) => setPrivatePassword(e.target.value)}
+                                            placeholder="••••••••"
+                                        />
+                                    </Field>
+                                )}
+                            </div>
 
-                        <Field label="Admin private password" hint="Required by the backend to authorise KYC changes">
-                            <TextInput
-                                type="password"
-                                required
-                                value={privatePassword}
-                                onChange={(e) => setPrivatePassword(e.target.value)}
-                                placeholder="••••••••"
-                            />
-                        </Field>
+                            {decision === 'Rejected' && (
+                                <Field label="Admin private password" hint="Required to authorise KYC changes">
+                                    <TextInput
+                                        type="password"
+                                        required
+                                        value={privatePassword}
+                                        onChange={(e) => setPrivatePassword(e.target.value)}
+                                        placeholder="••••••••"
+                                    />
+                                </Field>
+                            )}
 
-                        <div className="flex justify-end gap-2">
-                            <Button type="button" variant="secondary" onClick={() => setActive(null)}>Cancel</Button>
-                            <Button type="submit" disabled={saving}>{saving ? 'Saving…' : `Mark ${decision}`}</Button>
+                            <div className="flex justify-end gap-2">
+                                <Button type="button" variant="secondary" onClick={() => setActive(null)}>Cancel</Button>
+                                <Button type="submit" disabled={saving}>{saving ? 'Saving…' : `Mark ${decision}`}</Button>
+                            </div>
                         </div>
                     </form>
                 </div>

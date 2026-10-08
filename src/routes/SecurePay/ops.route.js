@@ -7,6 +7,7 @@ import {
     getPaymentTimeline,
     explainPayment,
     getCustomerOverview,
+    listCustomers,
     streamLiveEvents,
     previewProviderRouting
 } from '../../controllers/SecurePay/ops.controller.js';
@@ -25,6 +26,7 @@ router.get('/transactions/live', verifyAdmin, getLiveTransactions);
 router.get('/providers/health', verifyAdmin, getProviderHealth);
 router.get('/payments/:uuid/timeline', verifyAdmin, getPaymentTimeline);
 router.get('/payments/:uuid/explain', verifyAdmin, explainPayment);
+router.get('/customers', verifyAdmin, listCustomers);
 router.get('/customers/:uuid/overview', verifyAdmin, getCustomerOverview);
 router.get('/routing/preview', verifyAdmin, previewProviderRouting);
 

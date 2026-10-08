@@ -412,6 +412,37 @@ export const explainPayment = asyncHandler(async (req, res) => {
 });
 
 /**
+ * @desc    Lightweight customer directory (for the Customer 360 picker)
+ * @route   GET /api/securepay/customers
+ * @access  Private (Admin)
+ */
+export const listCustomers = asyncHandler(async (req, res) => {
+    const { q = '', limit = 100 } = req.query;
+
+    const where = {};
+    const term = String(q).trim();
+    if (term) {
+        where[Op.or] = [
+            { fullName: { [Op.like]: `%${term}%` } },
+            { email: { [Op.like]: `%${term}%` } },
+            { mobile: { [Op.like]: `%${term}%` } },
+            { uuid: term }
+        ];
+    }
+
+    const customers = await User.findAll({
+        where,
+        attributes: ['uuid', 'fullName', 'email', 'mobile', 'kyc', 'company_name', 'business_type', 'is_blocked', 'updatedAt'],
+        order: [['updatedAt', 'DESC']],
+        limit: Math.min(parseInt(limit, 10) || 100, 250)
+    });
+
+    return res.status(HTTP_STATUS.OK).json(
+        new ApiResponse(HTTP_STATUS.OK, { customers }, 'Customer directory fetched successfully.')
+    );
+});
+
+/**
  * @desc    Customer 360 — one call for everything about a customer
  * @route   GET /api/securepay/customers/:uuid/overview
  * @access  Private (Admin)
@@ -470,11 +501,35 @@ export const getCustomerOverview = asyncHandler(async (req, res) => {
                 fullName: customer.fullName,
                 email: customer.email,
                 mobile: customer.mobile,
+                dob: customer.dob || null,
                 role: customer.role,
+                shopname: customer.shopname || null,
                 companyName: customer.company_name,
                 businessType: customer.business_type,
+                businessCategory: customer.business_category || null,
+                cin: customer.cin || null,
+                gstNumber: customer.gst_number || null,
+                pan: customer.pancard || null,
+                panStatus: customer.pan_verification_status || 'pending',
+                address: customer.address || null,
+                city: customer.city || null,
+                state: customer.state || null,
+                pincode: customer.pincode || null,
+                registeredAddress: customer.registered_address || null,
+                businessAddress: customer.business_address || null,
+                businessCity: customer.business_city || null,
+                businessState: customer.business_state || null,
+                businessPincode: customer.business_pincode || null,
+                digilockerRegistered: Boolean(customer.digilocker_registered),
+                digilockerVerifiedAt: customer.digilocker_verified_at || null,
+                pepStatus: customer.pep_status || null,
                 isBlocked: customer.is_blocked,
-                createdAt: customer.createdAt
+                hasSelfie: Boolean(customer.merchant_selfie),
+                hasVideoKyc: Boolean(customer.merchant_video),
+                latitude: customer.latitude ?? null,
+                longitude: customer.longitude ?? null,
+                createdAt: customer.createdAt,
+                updatedAt: customer.updatedAt
             },
             kyc: {
                 status: kycJourney.kycStatus,

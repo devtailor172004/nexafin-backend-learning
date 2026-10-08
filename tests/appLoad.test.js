@@ -27,6 +27,7 @@ test('SecurePay ops router registers every documented route', async () => {
         '/providers/health',
         '/payments/:uuid/timeline',
         '/payments/:uuid/explain',
+        '/customers',
         '/customers/:uuid/overview',
         '/stream'
     ].forEach((expected) => {
