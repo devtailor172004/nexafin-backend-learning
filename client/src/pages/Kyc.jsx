@@ -1,28 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import { endpoints } from '../lib/api.js';
+import { useToast } from '../lib/toast.jsx';
 import { Badge, Button, Card, EmptyState, ErrorNotice, Field, Select, Spinner, TextInput } from '../components/ui.jsx';
+import DetailGrid from '../components/DetailGrid.jsx';
 import LivenessCheck from '../components/LivenessCheck.jsx';
 import { formatDateTime } from '../lib/format.js';
 
 const STATUS_OPTIONS = ['Pending', 'Approved', 'Rejected'];
 const TABS = ['Details', 'Journey', 'Liveness'];
 
-function DetailGrid({ entries }) {
-    return (
-        <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
-            {entries.map(([label, value]) => (
-                <div key={label} className="rounded-lg bg-slate-900/60 p-2.5">
-                    <p className="text-[10px] uppercase tracking-wide text-slate-500">{label}</p>
-                    <p className="mt-0.5 break-words font-medium text-slate-200">
-                        {value === null || value === undefined || value === '' ? '—' : String(value)}
-                    </p>
-                </div>
-            ))}
-        </div>
-    );
-}
-
 export default function Kyc() {
+    const toast = useToast();
     const [status, setStatus] = useState('Pending');
     const [profiles, setProfiles] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -87,6 +75,7 @@ export default function Kyc() {
                 privatePassword
             });
             setNotice(`${active.fullName} marked as ${decision}.`);
+            toast.success(`${active.fullName} marked as ${decision}.`);
             setActive(null);
             setPrivatePassword('');
             setReason('');
@@ -111,8 +100,10 @@ export default function Kyc() {
             });
             setJourney((prev) => (prev ? { ...prev, ...response.data?.journey } : prev));
             setNotice(`Document marked as ${nextStatus}.`);
+            toast.success(`Document marked as ${nextStatus}.`);
         } catch (err) {
             setError(err.message || 'Failed to update the document.');
+            toast.error(err.message || 'Failed to update the document.');
         } finally {
             setDocSaving(null);
         }
@@ -132,8 +123,10 @@ export default function Kyc() {
             });
             setJourney((prev) => (prev ? { ...prev, ...response.data?.journey } : prev));
             setNotice(`Liveness check saved (score ${response.data?.liveness?.score ?? result.score}/100).`);
+            toast.success(`Liveness saved — score ${response.data?.liveness?.score ?? result.score}/100.`);
         } catch (err) {
             setError(err.message || 'Failed to save the liveness result.');
+            toast.error(err.message || 'Failed to save the liveness result.');
             throw err;
         }
     };

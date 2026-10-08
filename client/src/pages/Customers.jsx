@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { endpoints } from '../lib/api.js';
+import { useToast } from '../lib/toast.jsx';
 import { Badge, Button, Card, EmptyState, ErrorNotice, Field, Select, Spinner, TextInput } from '../components/ui.jsx';
 import { formatCurrency, formatDateTime, formatTime } from '../lib/format.js';
 
@@ -26,6 +27,7 @@ function ProfileEntry({ label, value, mono }) {
 }
 
 export default function Customers() {
+    const toast = useToast();
     const [directory, setDirectory] = useState([]);
     const [directoryLoading, setDirectoryLoading] = useState(true);
     const [search, setSearch] = useState('');
@@ -72,6 +74,7 @@ export default function Customers() {
         } catch (err) {
             setData(null);
             setError(err.message || 'Failed to load customer.');
+            toast.error(err.message || 'Failed to load customer.');
         } finally {
             setLoading(false);
         }
@@ -92,9 +95,10 @@ export default function Customers() {
         try {
             await navigator.clipboard.writeText(data.profile.uuid);
             setCopied(true);
+            toast.success('Customer UUID copied to clipboard.');
             setTimeout(() => setCopied(false), 1500);
         } catch {
-            // clipboard unavailable
+            toast.error('Clipboard unavailable — copy the UUID manually.');
         }
     };
 
