@@ -28,11 +28,12 @@ export function ToastProvider({ children }) {
     }, [dismiss]);
 
     const value = useMemo(() => ({
+        toasts,
         success: (message) => push(message, 'success'),
         error: (message) => push(message, 'error'),
         info: (message) => push(message, 'info'),
         dismiss
-    }), [push, dismiss]);
+    }), [toasts, push, dismiss]);
 
     return <ToastContext.Provider value={value}>{children}</ToastContext.Provider>;
 }
@@ -56,7 +57,9 @@ const VARIANT_STYLES = {
 const VARIANT_ICON = { success: '✓', error: '✕', info: 'ℹ' };
 
 export function Toaster() {
-    const { toasts, dismiss } = useContext(ToastContext) || { toasts: [], dismiss: () => {} };
+    const context = useContext(ToastContext);
+    const toasts = context?.toasts || [];
+    const dismiss = context?.dismiss || (() => {});
 
     if (!toasts.length) return null;
 
