@@ -75,6 +75,44 @@ test('unverified directors block verification', () => {
     assert.equal(journey.verified, false);
 });
 
+test('a recorded liveness test shows up as a dedicated journey step', () => {
+    const journey = buildKycJourney({
+        user: completeUser,
+        directors: completeDirectors,
+        documents: [{ uuid: 'live-1', document_type: 'LIVENESS_CHECK', status: 'verified', rejection_reason: null }]
+    });
+    const livenessStep = journey.steps.find((s) => s.key === 'LIVENESS');
+    assert.ok(livenessStep, 'expected a LIVENESS step');
+    assert.equal(livenessStep.status, KYC_STEP.COMPLETE);
+    assert.equal(livenessStep.evidence.uuid, 'live-1');
+    // Liveness never inflates the completion denominator
+    assert.equal(journey.completionPercent, 100);
+    assert.equal(journey.verified, true);
+});
+
+test('a pending liveness test is pending, a rejected one blocks', () => {
+    const pending = buildKycJourney({
+        user: completeUser,
+        documents: [{ uuid: 'live-2', document_type: 'LIVENESS_CHECK', status: 'pending' }]
+    });
+    assert.equal(pending.steps.find((s) => s.key === 'LIVENESS').status, KYC_STEP.PENDING);
+
+    const rejected = buildKycJourney({
+        user: completeUser,
+        documents: [{ uuid: 'live-3', document_type: 'LIVENESS_CHECK', status: 'rejected', rejection_reason: 'Photo of a photo' }]
+    });
+    const step = rejected.steps.find((s) => s.key === 'LIVENESS');
+    assert.equal(step.status, KYC_STEP.REJECTED);
+    assert.ok(rejected.blockers.some((b) => b.includes('Photo of a photo')), `blockers: ${rejected.blockers.join(' | ')}`);
+});
+
+test('a user with no liveness record has a NOT_STARTED liveness step', () => {
+    const journey = buildKycJourney({ user: completeUser, documents: [] });
+    const step = journey.steps.find((s) => s.key === 'LIVENESS');
+    assert.ok(step, 'expected a LIVENESS step even without evidence');
+    assert.equal(step.status, KYC_STEP.NOT_STARTED);
+});
+
 test('rejected documents put the DOCUMENTS step in a rejected state', () => {
     const journey = buildKycJourney({
         user: completeUser,

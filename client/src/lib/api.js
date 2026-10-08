@@ -133,6 +133,7 @@ export const endpoints = {
     kycProfile: (uuid) => api.get(`/api/admin/kyc/${uuid}`),
     kycReviewDocument: (uuid, documentUuid, body) => api.patch(`/api/admin/kyc/${uuid}/documents/${documentUuid}/status`, body),
     kycLiveness: (uuid, body) => api.post(`/api/admin/kyc/${uuid}/liveness`, body),
+    setKycPrivatePassword: (password) => api.put('/api/admin/private-password', { password }),
     customerList: (q = '') => api.get(`/api/securepay/customers${q ? `?q=${encodeURIComponent(q)}` : ''}`),
 
     // --- Payment simulator (drives the real merchant APIs) ---

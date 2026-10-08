@@ -34,6 +34,10 @@ export default function KycVerification() {
     const [saving, setSaving] = useState(false);
     const [docSaving, setDocSaving] = useState(null);
 
+    const [passwordMissing, setPasswordMissing] = useState(false);
+    const [newPrivatePassword, setNewPrivatePassword] = useState('');
+    const [settingPassword, setSettingPassword] = useState(false);
+
     useEffect(() => {
         let cancelled = false;
         (async () => {
@@ -85,6 +89,32 @@ export default function KycVerification() {
         await loadCustomer(value);
     };
 
+    const handleKycError = (err, fallback) => {
+        const message = err.message || fallback;
+        setError(message);
+        if (message.includes('has not been set')) {
+            setPasswordMissing(true);
+            toast.error('KYC private password is not set yet — set it below, then retry.');
+        } else {
+            toast.error(message);
+        }
+    };
+
+    const savePrivatePassword = async () => {
+        setSettingPassword(true);
+        try {
+            await endpoints.setKycPrivatePassword(newPrivatePassword);
+            setPrivatePassword(newPrivatePassword);
+            setPasswordMissing(false);
+            setNewPrivatePassword('');
+            toast.success('KYC private password set — retry the action.');
+        } catch (err) {
+            toast.error(err.message || 'Failed to set the private password.');
+        } finally {
+            setSettingPassword(false);
+        }
+    };
+
     const submitDecision = async (event) => {
         event.preventDefault();
         if (!uuid) return;
@@ -103,9 +133,7 @@ export default function KycVerification() {
             const refreshed = await endpoints.customerList();
             setDirectory(refreshed.data?.customers || []);
         } catch (err) {
-            const message = err.message || 'Failed to update KYC status.';
-            setError(message);
-            toast.error(message);
+            handleKycError(err, 'Failed to update KYC status.');
         } finally {
             setSaving(false);
         }
@@ -124,9 +152,7 @@ export default function KycVerification() {
             setJourney((prev) => (prev ? { ...prev, ...response.data?.journey } : prev));
             toast.success(`Document marked as ${nextStatus}.`);
         } catch (err) {
-            const message = err.message || 'Failed to update the document.';
-            setError(message);
-            toast.error(message);
+            handleKycError(err, 'Failed to update the document.');
         } finally {
             setDocSaving(null);
         }
@@ -371,6 +397,31 @@ export default function KycVerification() {
                         {/* Admin decision */}
                         <form onSubmit={submitDecision} className="space-y-3 border-t border-slate-800 pt-3">
                             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Admin decision</p>
+
+                            {passwordMissing && (
+                                <div className="space-y-2 rounded-lg border border-amber-900/60 bg-amber-950/30 p-3">
+                                    <p className="text-xs font-semibold text-amber-200">KYC private password not set yet</p>
+                                    <p className="text-[11px] text-amber-300/80">
+                                        The backend requires a private password for every KYC change (documents and decisions). Set it once — it will be reused for this action.
+                                    </p>
+                                    <div className="flex flex-col gap-2 sm:flex-row">
+                                        <TextInput
+                                            type="password"
+                                            value={newPrivatePassword}
+                                            onChange={(e) => setNewPrivatePassword(e.target.value)}
+                                            placeholder="Choose a private password"
+                                        />
+                                        <Button
+                                            type="button"
+                                            variant="secondary"
+                                            disabled={settingPassword || !newPrivatePassword.trim()}
+                                            onClick={savePrivatePassword}
+                                        >
+                                            {settingPassword ? 'Saving…' : 'Set password'}
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
                             <div className="grid gap-3 sm:grid-cols-3">
                                 <Field label="Decision">
                                     <Select value={decision} onChange={(e) => setDecision(e.target.value)}>

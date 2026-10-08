@@ -166,7 +166,33 @@ export const buildKycJourney = ({ user, directors = [], documents = [] } = {}) =
         { missing: bankMissing }
     ));
 
-    // 9. Video KYC
+    // 9. Liveness check (camera test evidence)
+    const livenessDoc = documents.find((d) => String(d.document_type || '').toUpperCase() === 'LIVENESS_CHECK');
+    let livenessStatus = STEP.NOT_STARTED;
+    let livenessDetail = 'No liveness test recorded yet';
+    if (livenessDoc) {
+        if (livenessDoc.status === 'verified') {
+            livenessStatus = STEP.COMPLETE;
+            livenessDetail = 'Liveness test passed — camera evidence on file';
+        } else if (livenessDoc.status === 'rejected') {
+            livenessStatus = STEP.REJECTED;
+            livenessDetail = livenessDoc.rejection_reason
+                ? `Liveness rejected: ${livenessDoc.rejection_reason}`
+                : 'Liveness test rejected by admin';
+        } else {
+            livenessStatus = STEP.PENDING;
+            livenessDetail = 'Liveness test recorded — awaiting manual review';
+        }
+    }
+    steps.push(step(
+        'LIVENESS',
+        'Liveness check (camera)',
+        livenessStatus,
+        livenessDetail,
+        { evidence: livenessDoc ? { uuid: livenessDoc.uuid, status: livenessDoc.status } : null }
+    ));
+
+    // 10. Video KYC
     steps.push(step(
         'VIDEO_KYC',
         'Video KYC',
@@ -174,7 +200,7 @@ export const buildKycJourney = ({ user, directors = [], documents = [] } = {}) =
         has(u.merchant_video) ? 'Video KYC uploaded' : 'Video KYC not uploaded'
     ));
 
-    // 10. Admin review
+    // 11. Admin review
     const adminStatus = u.kyc === 'Approved' ? STEP.COMPLETE : (u.kyc === 'Rejected' ? STEP.REJECTED : STEP.PENDING);
     steps.push(step(
         'ADMIN_REVIEW',
@@ -186,7 +212,10 @@ export const buildKycJourney = ({ user, directors = [], documents = [] } = {}) =
         { decision: u.kyc || 'Pending' }
     ));
 
-    const required = steps.filter((s) => s.key !== 'VIDEO_KYC' && s.key !== 'ADMIN_REVIEW');
+    // Liveness is informational until an evidence record exists — when it does,
+    // a rejected record blocks via BLOCKER scan and a pending one gates through
+    // the DOCUMENTS step, so it never inflates the completion denominator.
+    const required = steps.filter((s) => !['LIVENESS', 'VIDEO_KYC', 'ADMIN_REVIEW'].includes(s.key));
     const completed = required.filter((s) => s.status === STEP.COMPLETE).length;
     const total = required.length;
 
