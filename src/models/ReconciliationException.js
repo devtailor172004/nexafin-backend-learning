@@ -14,7 +14,7 @@ import ReconciliationRun from './ReconciliationRun.js';
  */
 const ReconciliationException = sequelize.define('ReconciliationException', {
     id: {
-        type: DataTypes.BIGINT.UNSIGNED,
+        type: DataTypes.BIGINT,
         autoIncrement: true,
         primaryKey: true
     },
@@ -25,7 +25,7 @@ const ReconciliationException = sequelize.define('ReconciliationException', {
         unique: true
     },
     runId: {
-        type: DataTypes.BIGINT.UNSIGNED,
+        type: DataTypes.BIGINT,
         allowNull: false,
         references: {
             model: 'reconciliation_runs',
@@ -67,11 +67,11 @@ const ReconciliationException = sequelize.define('ReconciliationException', {
         allowNull: true
     },
     internalPaymentId: {
-        type: DataTypes.BIGINT.UNSIGNED,
+        type: DataTypes.BIGINT,
         allowNull: true
     },
     internalOrderId: {
-        type: DataTypes.BIGINT.UNSIGNED,
+        type: DataTypes.BIGINT,
         allowNull: true
     },
     expectedAmount: {

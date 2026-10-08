@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import sequelize from '../../../config/db.js';
 import Director from '../../../models/Director.js';
 import User from '../../../models/User.js';
+import UserDocument from '../../../models/UserDocument.js';
 import AdminSetting from '../../../models/AdminSetting.js';
 import { ApiError } from '../../../utils/ApiError.js';
 import { ApiResponse } from '../../../utils/ApiResponse.js';
@@ -11,6 +12,7 @@ import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { HTTP_STATUS } from '../../../utils/httpStatus.js';
 import { getPaginationParams, formatPaginatedResponse } from '../../../utils/paginationHelper.js';
 import { getOrCreateUserProducts } from '../Product/product.controller.js';
+import { getKycJourneyForUser } from '../../../securepay/kycJourney.js';
 
 /**
  * @desc    Get KYC profiles list filtered by status (Admin)
@@ -169,5 +171,95 @@ export const updateKycStatus = asyncHandler(async (req, res) => {
             },
             `User KYC status updated to '${targetStatus}' successfully!`
         )
+    );
+});
+
+/**
+ * Verifies the KYC private password kept in admin_settings.
+ * Shared by every admin action that can change KYC state.
+ */
+const assertKycPrivatePassword = async (private_password) => {
+    const setting = await AdminSetting.findOne({ where: { key: 'kyc_private_password' } });
+    if (!setting) {
+        throw new ApiError(HTTP_STATUS.BAD_REQUEST, "KYC private password has not been set by the admin yet.");
+    }
+    if (!private_password || String(private_password).trim() === "") {
+        throw new ApiError(HTTP_STATUS.UNAUTHORIZED, "Private password is required to update KYC state.");
+    }
+    const isMatch = await bcrypt.compare(String(private_password), setting.value);
+    if (!isMatch) {
+        throw new ApiError(HTTP_STATUS.UNAUTHORIZED, "Invalid private password. Access denied.");
+    }
+};
+
+/**
+ * @desc    Full KYC journey (steps, blockers, completion) for a merchant
+ * @route   GET /api/admin/kyc/:uuid/journey
+ * @access  Private (Admin)
+ */
+export const getKycJourney = asyncHandler(async (req, res) => {
+    const { uuid } = req.params;
+
+    const user = await User.findOne({ where: { uuid } });
+    if (!user) {
+        throw new ApiError(HTTP_STATUS.NOT_FOUND, "User not found!");
+    }
+
+    const journey = await getKycJourneyForUser(user);
+
+    return res.status(HTTP_STATUS.OK).json(
+        new ApiResponse(HTTP_STATUS.OK, {
+            user: { id: user.id, uuid: user.uuid, fullName: user.fullName, email: user.email, mobile: user.mobile },
+            ...journey
+        }, "KYC journey fetched successfully.")
+    );
+});
+
+/**
+ * @desc    Approve or reject a single uploaded KYC document
+ * @route   PATCH /api/admin/kyc/:uuid/documents/:documentUuid/status
+ * @access  Private (Admin)
+ */
+export const reviewUserDocument = asyncHandler(async (req, res) => {
+    const { uuid, documentUuid } = req.params;
+    const { status, reason, private_password } = req.body;
+
+    await assertKycPrivatePassword(private_password);
+
+    const normalized = String(status || '').toLowerCase();
+    if (!['verified', 'rejected', 'pending'].includes(normalized)) {
+        throw new ApiError(HTTP_STATUS.BAD_REQUEST, "Status must be one of: verified, rejected, pending.");
+    }
+
+    if (normalized === 'rejected' && (!reason || String(reason).trim() === '')) {
+        throw new ApiError(HTTP_STATUS.BAD_REQUEST, "A rejection reason is required when rejecting a document.");
+    }
+
+    const user = await User.findOne({ where: { uuid } });
+    if (!user) {
+        throw new ApiError(HTTP_STATUS.NOT_FOUND, "User not found!");
+    }
+
+    const document = await UserDocument.findOne({ where: { uuid: documentUuid, userId: user.id } });
+    if (!document) {
+        throw new ApiError(HTTP_STATUS.NOT_FOUND, "Document not found for this user.");
+    }
+
+    document.status = normalized;
+    document.rejection_reason = normalized === 'rejected' ? String(reason).trim() : null;
+    await document.save();
+
+    const journey = await getKycJourneyForUser(user);
+
+    return res.status(HTTP_STATUS.OK).json(
+        new ApiResponse(HTTP_STATUS.OK, {
+            document: {
+                uuid: document.uuid,
+                document_type: document.document_type,
+                status: document.status,
+                rejection_reason: document.rejection_reason
+            },
+            journey
+        }, `Document marked as '${normalized}'.`)
     );
 });

@@ -11,7 +11,7 @@ import User from './User.js';
  */
 const AuditLog = sequelize.define('AuditLog', {
     id: {
-        type: DataTypes.BIGINT.UNSIGNED,
+        type: DataTypes.BIGINT,
         autoIncrement: true,
         primaryKey: true
     },

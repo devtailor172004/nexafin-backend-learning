@@ -9,7 +9,7 @@ const PineLabsPayment = sequelize.define(
     'PineLabsPayment',
     {
         id: {
-            type: DataTypes.BIGINT.UNSIGNED,
+            type: DataTypes.BIGINT,
             autoIncrement: true,
             primaryKey: true
         },
@@ -23,7 +23,7 @@ const PineLabsPayment = sequelize.define(
 
         // Local order ID
         orderId: {
-            type: DataTypes.BIGINT.UNSIGNED,
+            type: DataTypes.BIGINT,
             allowNull: false,
             references: {
                 model: 'pine_labs_orders',
@@ -243,6 +243,28 @@ const PineLabsPayment = sequelize.define(
             type: DataTypes.DATE,
             allowNull: true
         },
+
+        // =========================
+        // SETTLEMENT
+        // =========================
+        // Settlement is ORTHOGONAL to payment status: a PROCESSED payment is
+        // money captured from the customer, while settlement is money moved by
+        // the acquirer into the merchant's account (typically T+1/T+2). Keeping
+        // it separate means a settled payment can still be refunded.
+        settlementStatus: {
+            type: DataTypes.ENUM('UNSETTLED', 'SETTLED', 'ON_HOLD'),
+            allowNull: false,
+            defaultValue: 'UNSETTLED'
+        },
+        settledAt: {
+            type: DataTypes.DATE,
+            allowNull: true
+        },
+        settlementReference: {
+            type: DataTypes.STRING(100),
+            allowNull: true
+        },
+
         ipAddress: {
             type: DataTypes.STRING,
             allowNull: true
@@ -268,6 +290,9 @@ const PineLabsPayment = sequelize.define(
             },
             {
                 fields: ['status']
+            },
+            {
+                fields: ['settlementStatus']
             }
         ]
     }

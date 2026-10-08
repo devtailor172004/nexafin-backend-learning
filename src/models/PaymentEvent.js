@@ -17,7 +17,7 @@ import PineLabsPayment from './PineLabsPayment.js';
  */
 const PaymentEvent = sequelize.define('PaymentEvent', {
     id: {
-        type: DataTypes.BIGINT.UNSIGNED,
+        type: DataTypes.BIGINT,
         autoIncrement: true,
         primaryKey: true
     },
@@ -28,7 +28,7 @@ const PaymentEvent = sequelize.define('PaymentEvent', {
         unique: true
     },
     orderId: {
-        type: DataTypes.BIGINT.UNSIGNED,
+        type: DataTypes.BIGINT,
         allowNull: true,
         references: {
             model: 'pine_labs_orders',
@@ -37,7 +37,7 @@ const PaymentEvent = sequelize.define('PaymentEvent', {
         onDelete: 'CASCADE'
     },
     paymentId: {
-        type: DataTypes.BIGINT.UNSIGNED,
+        type: DataTypes.BIGINT,
         allowNull: true,
         references: {
             model: 'pine_labs_payments',

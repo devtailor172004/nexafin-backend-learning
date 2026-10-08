@@ -12,7 +12,7 @@ import User from './User.js';
  */
 const ReconciliationRun = sequelize.define('ReconciliationRun', {
     id: {
-        type: DataTypes.BIGINT.UNSIGNED,
+        type: DataTypes.BIGINT,
         autoIncrement: true,
         primaryKey: true
     },

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { endpoints } from '../lib/api.js';
-import { Badge, Card, ErrorNotice, EmptyState, Spinner, StatCard } from '../components/ui.jsx';
+import { useLiveStream } from '../lib/useLiveStream.js';
+import { Badge, Button, Card, ErrorNotice, EmptyState, Spinner, StatCard } from '../components/ui.jsx';
 import { percent, formatCurrency, formatNumber, formatSeconds, formatDateTime } from '../lib/format.js';
 
 const REFRESH_MS = 20000;
@@ -9,6 +10,14 @@ export default function Dashboard() {
     const [data, setData] = useState(null);
     const [error, setError] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [notice, setNotice] = useState(null);
+    const [settling, setSettling] = useState(false);
+
+    // Live KPI refresh: any payment event on the SSE stream re-pulls the
+    // dashboard (debounced), so the numbers move in real time rather than
+    // waiting for the next 20s poll.
+    const { events, status: streamStatus } = useLiveStream({ enabled: true });
+    const latestEventId = events[0]?.id;
 
     const load = useCallback(async () => {
         try {
@@ -28,10 +37,32 @@ export default function Dashboard() {
         return () => clearInterval(timer);
     }, [load]);
 
+    useEffect(() => {
+        if (!latestEventId) return undefined;
+        const timer = setTimeout(() => { load(); }, 700);
+        return () => clearTimeout(timer);
+    }, [latestEventId, load]);
+
+    const settle = useCallback(async () => {
+        setSettling(true);
+        setError(null);
+        setNotice(null);
+        try {
+            const response = await endpoints.runSettlement({});
+            setNotice(`Settled ${formatNumber(response.data?.settledCount)} payment(s) under ${response.data?.reference || '—'}.`);
+            await load();
+        } catch (err) {
+            setError(err.message || 'Settlement run failed.');
+        } finally {
+            setSettling(false);
+        }
+    }, [load]);
+
     if (loading && !data) return <Spinner label="Loading dashboard…" />;
 
     const payments = data?.payments || {};
     const webhooks = data?.webhooks || {};
+    const settlement = data?.settlement || { unsettled: { count: 0, amount: 0 }, settled: { count: 0, amount: 0 }, settledToday: { count: 0, amount: 0 } };
     const byStatus = payments.byStatus || {};
     const byMethod = payments.byMethod || {};
 
@@ -48,10 +79,16 @@ export default function Dashboard() {
                         Today · since {data?.since ? new Date(data.since).toLocaleString('en-IN') : '—'} · auto-refreshes every 20s
                     </p>
                 </div>
-                <p className="text-xs text-slate-500">Live subscribers: {data?.realtime?.subscribers ?? 0}</p>
+                <div className="flex items-center gap-2 text-xs text-slate-500">
+                    <Badge value={streamStatus === 'connected' ? 'Live' : streamStatus} />
+                    <span>Live subscribers: {data?.realtime?.subscribers ?? 0}</span>
+                </div>
             </div>
 
             <ErrorNotice message={error} onRetry={load} />
+            {notice && (
+                <div className="rounded-xl border border-emerald-900/60 bg-emerald-950/30 px-4 py-3 text-sm text-emerald-200">{notice}</div>
+            )}
 
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
                 <StatCard label="Success rate" value={percent(payments.successRate)} tone={(payments.successRate ?? 0) >= 95 ? 'good' : 'warn'} />
@@ -142,6 +179,25 @@ export default function Dashboard() {
                     )}
                 </Card>
             </div>
+
+            {data?.settlement?.implemented && (
+                <Card
+                    title="Settlement"
+                    subtitle="Captured funds moved by the acquirer into the merchant account"
+                    actions={(
+                        <Button variant="secondary" onClick={settle} disabled={settling}>
+                            {settling ? 'Settling…' : 'Run settlement'}
+                        </Button>
+                    )}
+                >
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                        <StatCard label="Unsettled amount" value={formatCurrency(settlement.unsettled.amount)} tone={settlement.unsettled.amount ? 'warn' : 'good'} />
+                        <StatCard label="Unsettled payments" value={formatNumber(settlement.unsettled.count)} />
+                        <StatCard label="Settled amount" value={formatCurrency(settlement.settled.amount)} tone="good" />
+                        <StatCard label="Settled today" value={formatNumber(settlement.settledToday.count)} tone="info" hint={formatCurrency(settlement.settledToday.amount)} />
+                    </div>
+                </Card>
+            )}
 
             {data?.reconciliation?.implemented && (
                 <Card

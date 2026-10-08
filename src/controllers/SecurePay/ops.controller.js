@@ -25,6 +25,8 @@ import { selectProvider, evaluateFailover } from '../../securepay/router.js';
 import ReconciliationException from '../../models/ReconciliationException.js';
 import ReconciliationRun from '../../models/ReconciliationRun.js';
 import { allowedTransitions } from '../../securepay/stateMachine.js';
+import { getSettlementSummary } from '../../securepay/settlement.js';
+import { getKycJourneyForUser } from '../../securepay/kycJourney.js';
 import logger from '../../utils/logger.js';
 
 const TERMINAL_SUCCESS = ['PROCESSED'];
@@ -130,6 +132,9 @@ export const getOperationsDashboard = asyncHandler(async (req, res) => {
         ReconciliationRun.findOne({ order: [['createdAt', 'DESC']] })
     ]);
 
+    // Settlement is tracked separately from payment status.
+    const settlement = await getSettlementSummary();
+
     return res.status(HTTP_STATUS.OK).json(
         new ApiResponse(HTTP_STATUS.OK, {
             window: 'today',
@@ -160,6 +165,10 @@ export const getOperationsDashboard = asyncHandler(async (req, res) => {
             },
             realtime: {
                 subscribers: getLiveSubscriberCount()
+            },
+            settlement: {
+                implemented: true,
+                ...settlement
             },
             reconciliation: {
                 implemented: true,
@@ -444,6 +453,9 @@ export const getCustomerOverview = asyncHandler(async (req, res) => {
     const failedCount = payments.filter((p) => p.status === 'FAILED').length;
     const refunds = payments.filter((p) => REFUND_STATUSES.includes(p.status));
 
+    // Real KYC journey — was previously a hard-coded empty stub.
+    const kycJourney = await getKycJourneyForUser(customer);
+
     const riskSignals = [];
     if (customer.is_blocked) riskSignals.push({ code: 'ACCOUNT_BLOCKED', severity: 'HIGH' });
     if (customer.kyc === 'Rejected') riskSignals.push({ code: 'KYC_REJECTED', severity: 'HIGH' });
@@ -465,15 +477,20 @@ export const getCustomerOverview = asyncHandler(async (req, res) => {
                 createdAt: customer.createdAt
             },
             kyc: {
-                status: customer.kyc,
-                step: customer.kyc_step,
-                category: customer.kyc_category,
-                rejectionReason: customer.kyc_rejection_reason,
+                status: kycJourney.kycStatus,
+                step: kycJourney.kycStep,
+                category: kycJourney.kycCategory,
+                rejectionReason: kycJourney.rejectionReason,
                 panStatus: customer.pan_verification_status,
                 businessProofUrl: customer.business_proof_url,
-                // KYC journey timeline is Phase 3 work.
-                journeyImplemented: false,
-                timeline: []
+                journeyImplemented: true,
+                completionPercent: kycJourney.completionPercent,
+                completed: kycJourney.completed,
+                total: kycJourney.total,
+                verified: kycJourney.verified,
+                blockers: kycJourney.blockers,
+                missing: kycJourney.missing,
+                timeline: kycJourney.steps
             },
             bankAccounts: customer.accountnumber ? [{
                 bankName: customer.bankname,

@@ -18,6 +18,10 @@ export default function Kyc() {
     const [decision, setDecision] = useState('Approved');
     const [saving, setSaving] = useState(false);
 
+    const [journey, setJourney] = useState(null);
+    const [journeyLoading, setJourneyLoading] = useState(false);
+    const [docSaving, setDocSaving] = useState(null);
+
     const load = useCallback(async () => {
         setLoading(true);
         try {
@@ -32,6 +36,23 @@ export default function Kyc() {
     }, [status]);
 
     useEffect(() => { load(); }, [load]);
+
+    const openReview = useCallback(async (profile, nextDecision) => {
+        setActive(profile);
+        setDecision(nextDecision);
+        setNotice(null);
+        setReason('');
+        setJourney(null);
+        setJourneyLoading(true);
+        try {
+            const response = await endpoints.kycJourney(profile.uuid);
+            setJourney(response.data);
+        } catch (err) {
+            setError(err.message || 'Failed to load the KYC journey.');
+        } finally {
+            setJourneyLoading(false);
+        }
+    }, []);
 
     const submitDecision = async (event) => {
         event.preventDefault();
@@ -57,6 +78,28 @@ export default function Kyc() {
             setSaving(false);
         }
     };
+
+    const reviewDocument = async (documentUuid, nextStatus) => {
+        if (!active) return;
+        setDocSaving(documentUuid);
+        setError(null);
+        setNotice(null);
+        try {
+            const response = await endpoints.kycReviewDocument(active.uuid, documentUuid, {
+                status: nextStatus,
+                reason: nextStatus === 'rejected' ? (reason || 'Rejected by admin') : undefined,
+                private_password: privatePassword
+            });
+            setJourney((prev) => (prev ? { ...prev, ...response.data?.journey } : prev));
+            setNotice(`Document marked as ${nextStatus}.`);
+        } catch (err) {
+            setError(err.message || 'Failed to update the document.');
+        } finally {
+            setDocSaving(null);
+        }
+    };
+
+    const documents = journey?.steps?.find((s) => s.key === 'DOCUMENTS')?.records || [];
 
     return (
         <div className="space-y-5">
@@ -110,11 +153,7 @@ export default function Kyc() {
                                         <td className="px-3 py-2 text-right">
                                             <Button
                                                 variant="secondary"
-                                                onClick={() => {
-                                                    setActive(profile);
-                                                    setDecision(profile.kyc === 'Approved' ? 'Rejected' : 'Approved');
-                                                    setNotice(null);
-                                                }}
+                                                onClick={() => openReview(profile, profile.kyc === 'Approved' ? 'Rejected' : 'Approved')}
                                             >
                                                 Review
                                             </Button>
@@ -130,10 +169,75 @@ export default function Kyc() {
             {active && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/60" onClick={() => setActive(null)} />
-                    <form onSubmit={submitDecision} className="relative w-full max-w-md space-y-4 rounded-2xl border border-slate-800 bg-[#0b1120] p-5">
+                    <form onSubmit={submitDecision} className="relative max-h-[90vh] w-full max-w-lg space-y-4 overflow-y-auto rounded-2xl border border-slate-800 bg-[#0b1120] p-5">
                         <div>
                             <h2 className="text-sm font-semibold text-slate-100">Review KYC decision</h2>
                             <p className="mt-1 text-xs text-slate-500">{active.fullName} · {active.email}</p>
+                        </div>
+
+                        <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-950/40 p-3">
+                            {journeyLoading && <Spinner label="Loading KYC journey…" />}
+                            {journey && (
+                                <>
+                                    <div className="flex items-center justify-between">
+                                        <p className="text-xs font-semibold text-slate-300">
+                                            KYC journey · {journey.completionPercent}% complete ({journey.completed}/{journey.total})
+                                        </p>
+                                        <Badge value={journey.kycStatus} />
+                                    </div>
+                                    <ul className="space-y-1.5">
+                                        {journey.steps.map((step) => (
+                                            <li key={step.key} className="flex items-start justify-between gap-3 text-[11px]">
+                                                <div>
+                                                    <p className="text-slate-300">{step.label}</p>
+                                                    <p className="text-slate-500">{step.detail}</p>
+                                                </div>
+                                                <Badge value={step.status} />
+                                            </li>
+                                        ))}
+                                    </ul>
+
+                                    {journey.blockers?.length > 0 && (
+                                        <div className="rounded border border-rose-900/60 bg-rose-950/20 p-2 text-[11px] text-rose-200">
+                                            <p className="font-semibold">Blockers</p>
+                                            <ul className="list-disc pl-4">
+                                                {journey.blockers.map((blocker, index) => <li key={index}>{blocker}</li>)}
+                                            </ul>
+                                        </div>
+                                    )}
+
+                                    {documents.length > 0 && (
+                                        <div className="space-y-1">
+                                            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Documents</p>
+                                            {documents.map((doc) => (
+                                                <div key={doc.uuid || doc.type} className="flex items-center justify-between gap-2 text-[11px]">
+                                                    <span className="text-slate-300">
+                                                        {doc.type} <Badge value={doc.status} />
+                                                    </span>
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            type="button"
+                                                            className="text-emerald-300 hover:underline disabled:opacity-50"
+                                                            disabled={docSaving === doc.uuid}
+                                                            onClick={() => reviewDocument(doc.uuid, 'verified')}
+                                                        >
+                                                            Verify
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            className="text-rose-300 hover:underline disabled:opacity-50"
+                                                            disabled={docSaving === doc.uuid}
+                                                            onClick={() => reviewDocument(doc.uuid, 'rejected')}
+                                                        >
+                                                            Reject
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </>
+                            )}
                         </div>
 
                         <Field label="Decision">

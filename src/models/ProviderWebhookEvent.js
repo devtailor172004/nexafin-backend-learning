@@ -16,7 +16,7 @@ import { jsonColumnGetter } from '../utils/jsonColumn.js';
  */
 const ProviderWebhookEvent = sequelize.define('ProviderWebhookEvent', {
     id: {
-        type: DataTypes.BIGINT.UNSIGNED,
+        type: DataTypes.BIGINT,
         autoIncrement: true,
         primaryKey: true
     },
@@ -54,11 +54,11 @@ const ProviderWebhookEvent = sequelize.define('ProviderWebhookEvent', {
         allowNull: true
     },
     localOrderId: {
-        type: DataTypes.BIGINT.UNSIGNED,
+        type: DataTypes.BIGINT,
         allowNull: true
     },
     localPaymentId: {
-        type: DataTypes.BIGINT.UNSIGNED,
+        type: DataTypes.BIGINT,
         allowNull: true
     },
     webhookTimestamp: {

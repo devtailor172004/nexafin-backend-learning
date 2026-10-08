@@ -126,6 +126,19 @@ export const endpoints = {
     reconciliationExceptions: (query = '') => api.get(`/api/securepay/reconciliation/exceptions${query}`),
     updateReconciliationException: (uuid, body) => api.patch(`/api/securepay/reconciliation/exceptions/${uuid}`, body),
 
+    settlementSummary: () => api.get('/api/securepay/settlements/summary'),
+    runSettlement: (body = {}) => api.post('/api/securepay/settlements/run', body),
+
+    kycJourney: (uuid) => api.get(`/api/admin/kyc/${uuid}/journey`),
+    kycReviewDocument: (uuid, documentUuid, body) => api.patch(`/api/admin/kyc/${uuid}/documents/${documentUuid}/status`, body),
+
+    // --- Payment simulator (drives the real merchant APIs) ---
+    providerToken: (clientId, clientSecret) => api.post('/api/payment/nxpay/token', { clientId, clientSecret }),
+    createOrder: (body, idempotencyKey) => api.post('/api/payment/nxpay/order', body, { idempotencyKey: idempotencyKey || newIdempotencyKey('sim-order') }),
+    createUpiPayment: (orderUuid, body = {}) => api.post(`/api/payment/nxpay/order/${orderUuid}/upi/payments`, body, { idempotencyKey: newIdempotencyKey('sim-upi') }),
+    createNetbankingPayment: (orderUuid, body) => api.post(`/api/payment/nxpay/order/${orderUuid}/netbanking/payments`, body, { idempotencyKey: newIdempotencyKey('sim-nb') }),
+    createCardPayment: (orderUuid, body) => api.post(`/api/payment/nxpay/order/${orderUuid}/payments`, body),
+
     kycList: (status = 'Pending') => api.get(`/api/admin/kyc?status=${encodeURIComponent(status)}&limit=25`),
     kycApprove: (uuid, { status, reason, privatePassword }) => api.put(`/api/admin/kyc/${uuid}/status`, {
         status,

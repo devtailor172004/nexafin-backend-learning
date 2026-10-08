@@ -9,6 +9,7 @@ import ProviderHealth from './pages/ProviderHealth.jsx';
 import Reconciliation from './pages/Reconciliation.jsx';
 import Customers from './pages/Customers.jsx';
 import Kyc from './pages/Kyc.jsx';
+import Simulator from './pages/Simulator.jsx';
 import { EmptyState } from './components/ui.jsx';
 
 function RequireAuth({ children }) {
@@ -36,6 +37,7 @@ export default function App() {
                     <Route path="/login" element={<Login />} />
                     <Route element={<RequireAuth><Layout /></RequireAuth>}>
                         <Route path="/" element={<Dashboard />} />
+                        <Route path="/simulator" element={<Simulator />} />
                         <Route path="/live" element={<LiveOps />} />
                         <Route path="/payments" element={<Payments />} />
                         <Route path="/health" element={<ProviderHealth />} />

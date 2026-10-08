@@ -5,7 +5,7 @@ import User from './User.js';
 
 const PineLabsOrder = sequelize.define('PineLabsOrder', {
     id: {
-        type: DataTypes.BIGINT.UNSIGNED,
+        type: DataTypes.BIGINT,
         autoIncrement: true,
         primaryKey: true
     },
@@ -39,8 +39,11 @@ const PineLabsOrder = sequelize.define('PineLabsOrder', {
         allowNull: false,
         defaultValue: false
     },
+    // Stored in RUPEES with 2 decimals, matching PineLabsPayment.amount.
+    // (This was INTEGER, which silently truncated fractional amounts on MySQL
+    // and is rejected outright by Postgres.)
     amount: {
-        type: DataTypes.INTEGER, // stored in paise
+        type: DataTypes.DECIMAL(12, 2),
         allowNull: false
     },
     currency: {

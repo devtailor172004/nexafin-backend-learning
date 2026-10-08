@@ -5,7 +5,10 @@
   "scripts": {
     "start": "node index.js",
     "test": "node --test --test-force-exit tests/*.test.js",
-    "dev": "node --env-file=.env --watch index.js"
+    "dev": "node --env-file=.env --watch index.js",
+    "db:setup": "node scripts/dbSetup.js",
+    "db:seed": "node scripts/dbSetup.js --seed",
+    "test:e2e:sandbox": "node scripts/sandboxE2E.js"
   },
   "keywords": [],
   "author": "",
@@ -26,6 +29,8 @@
     "mysql2": "^3.23.1",
     "node-fetch": "^2.7.0",
     "nodemailer": "^9.0.3",
+    "pg": "^8.23.1",
+    "pg-hstore": "^2.3.4",
     "qrcode": "^1.5.4",
     "sequelize": "^6.37.8",
     "winston": "^3.19.0"

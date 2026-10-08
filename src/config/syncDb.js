@@ -6,65 +6,25 @@ import logger from '../utils/logger.js';
 /**
  * CONFIG FLAGS
  * ----------------------------------------------------
- * ALLOW_ALTER_COLUMN : Alters column if data type or allowNull mismatch is detected
+ * ALLOW_ALTER_COLUMN : Alters a column when a data type or allowNull mismatch
+ *                      is detected. This is safe on MySQL (the original
+ *                      deployment) but is intentionally NOT applied on
+ *                      Postgres, where a plain type change (e.g. JSON -> UUID)
+ *                      requires a `USING` cast and would otherwise fail or
+ *                      destroy data. On Postgres, mismatches are logged as
+ *                      warnings instead. A fresh Neon database needs no ALTERs
+ *                      at all.
  * ----------------------------------------------------
  */
 const ALLOW_ALTER_COLUMN = true;
 
 /**
- * Compares existing MySQL table column definition with Sequelize Model attribute.
- * Returns true if a data type or nullability mismatch is detected.
+ * Maps Sequelize DataTypes to comparable database base types, per dialect.
+ * `describeTable()` reports vendor specific names, so the same Sequelize type
+ * is compared against a different string on each engine.
  */
-function isColumnMismatched(dbColumn, modelAttribute) {
-    // --- Type check (loose comparison to handle DB dialect differences) ---
-    const dbType = (dbColumn.type || '').toUpperCase();
-    const modelType = getSequelizeTypeName(modelAttribute.type);
-
-    const typeMismatch = modelType && !dbType.includes(modelType);
-
-    // --- Nullable check ---
-    const modelAllowNull = modelAttribute.allowNull !== false; // default true
-    const nullMismatch = dbColumn.allowNull !== modelAllowNull;
-
-    // --- ENUM value check ---
-    // Sequelize sync detects type "ENUM" == "ENUM" and skips ALTER even when
-    // the values list changed (e.g. a new member was added). We compare the
-    // sorted value lists explicitly so that adding a new ENUM value
-    // (e.g. NETBANKING) correctly triggers an ALTER TABLE.
-    let enumMismatch = false;
-    if (modelType === 'ENUM' && Array.isArray(modelAttribute.type?.values)) {
-        // Normalize model ENUM values: uppercase + sorted
-        const modelValues = [...modelAttribute.type.values]
-            .map(v => v.toUpperCase())
-            .sort();
-
-        // MySQL returns: ENUM('CARD','UPI') — parse it
-        // Handle both single-quoted and unquoted formats defensively
-        const dbEnumMatch = dbType.match(/^ENUM\((.+)\)$/);
-        if (dbEnumMatch) {
-            const dbValues = dbEnumMatch[1]
-                .split(',')
-                .map(v => v.replace(/['"]/g, '').trim().toUpperCase())
-                .sort();
-
-            enumMismatch = JSON.stringify(modelValues) !== JSON.stringify(dbValues);
-        }
-        // If DB type doesn't look like ENUM(...) at all — something is wrong,
-        // but we already handle it via typeMismatch above. Don't force ALTER.
-    }
-
-    return typeMismatch || nullMismatch || enumMismatch;
-}
-
-
-/**
- * Maps Sequelize DataType object keys to comparable MySQL database base types.
- */
-function getSequelizeTypeName(type) {
-    if (!type) return null;
-    const key = type.key || type.constructor?.key;
-
-    const map = {
+const TYPE_MAP = {
+    mysql: {
         STRING: 'VARCHAR',
         TEXT: 'TEXT',
         INTEGER: 'INT',
@@ -77,10 +37,130 @@ function getSequelizeTypeName(type) {
         DATEONLY: 'DATE',
         ENUM: 'ENUM',
         JSON: 'JSON',
-        UUID: 'CHAR',
-    };
+        UUID: 'CHAR'
+    },
+    postgres: {
+        STRING: 'CHARACTER VARYING',
+        TEXT: 'TEXT',
+        INTEGER: 'INTEGER',
+        BIGINT: 'BIGINT',
+        FLOAT: 'REAL',
+        DOUBLE: 'DOUBLE PRECISION',
+        DECIMAL: 'NUMERIC',
+        BOOLEAN: 'BOOLEAN',
+        DATE: 'TIMESTAMP',
+        DATEONLY: 'DATE',
+        ENUM: 'USER-DEFINED',
+        JSON: 'JSON',
+        UUID: 'UUID'
+    }
+};
 
+const getSequelizeTypeName = (type, dialect) => {
+    if (!type) return null;
+    const key = type.key || type.constructor?.key;
+    const map = TYPE_MAP[dialect] || TYPE_MAP.mysql;
     return map[key] || null;
+};
+
+/**
+ * Compares an existing table column definition with a Sequelize Model
+ * attribute. Returns true if a data type or nullability mismatch is detected.
+ *
+ * ENUM value lists are handled separately (see syncEnumValues) because the
+ * engines expose them completely differently.
+ */
+function isColumnMismatched(dbColumn, modelAttribute, dialect) {
+    const modelType = getSequelizeTypeName(modelAttribute.type, dialect);
+
+    // Native Postgres enums report as USER-DEFINED; their values are synced
+    // separately and never via changeColumn.
+    if (modelType === 'USER-DEFINED') return false;
+
+    // --- Type check (loose comparison to handle DB dialect differences) ---
+    const dbType = (dbColumn.type || '').toUpperCase();
+    const typeMismatch = modelType && !dbType.includes(modelType);
+
+    // --- Nullable check ---
+    const modelAllowNull = modelAttribute.allowNull !== false; // default true
+    const nullMismatch = dbColumn.allowNull !== modelAllowNull;
+
+    // --- ENUM value check (MySQL only) ---
+    // Sequelize sync detects type "ENUM" == "ENUM" and skips ALTER even when
+    // the values list changed (e.g. a new member was added). We compare the
+    // sorted value lists explicitly so that adding a new ENUM value
+    // (e.g. NETBANKING) correctly triggers an ALTER TABLE.
+    let enumMismatch = false;
+    if (dialect === 'mysql' && modelType === 'ENUM' && Array.isArray(modelAttribute.type?.values)) {
+        const modelValues = [...modelAttribute.type.values]
+            .map(v => v.toUpperCase())
+            .sort();
+
+        // MySQL returns: ENUM('CARD','UPI') — parse it
+        const dbEnumMatch = dbType.match(/^ENUM\((.+)\)$/);
+        if (dbEnumMatch) {
+            const dbValues = dbEnumMatch[1]
+                .split(',')
+                .map(v => v.replace(/['"]/g, '').trim().toUpperCase())
+                .sort();
+
+            enumMismatch = JSON.stringify(modelValues) !== JSON.stringify(dbValues);
+        }
+    }
+
+    return typeMismatch || nullMismatch || enumMismatch;
+}
+
+/**
+ * Adds any query-defined ENUM values that are missing from the native Postgres
+ * enum type. `sequelize.sync()` only creates the type; it never grows it, so a
+ * newly added status (e.g. a new payment state) would otherwise be rejected.
+ */
+async function syncPostgresEnumValues(tableName, modelAttributes) {
+    for (const attrName of Object.keys(modelAttributes)) {
+        const attribute = modelAttributes[attrName];
+        if (!attribute.type || attribute.type.key !== 'ENUM') continue;
+        if (!Array.isArray(attribute.type.values)) continue;
+
+        const columnName = attribute.field || attrName;
+        // Sequelize's native Postgres enum naming convention.
+        const enumTypeName = `enum_${tableName}_${columnName}`;
+
+        let rows;
+        try {
+            rows = await sequelize.query(
+                `SELECT e.enumlabel AS label
+                   FROM pg_enum e
+                   JOIN pg_type t ON t.oid = e.enumtypid
+                  WHERE t.typname = :typeName`,
+                {
+                    replacements: { typeName: enumTypeName },
+                    type: sequelize.QueryTypes.SELECT
+                }
+            );
+        } catch (err) {
+            logger.warn(`[Auto-Sync] Could not inspect enum ${enumTypeName}: ${err.message}`);
+            continue;
+        }
+
+        // Type does not exist yet (sync() will create it on a fresh database).
+        if (!rows || rows.length === 0) continue;
+
+        const existing = rows.map(r => String(r.label));
+        for (const value of attribute.type.values) {
+            if (existing.includes(String(value))) continue;
+
+            logger.info(`[Auto-Sync] Adding missing ENUM value '${value}' to ${enumTypeName}...`);
+            try {
+                const escaped = String(value).replace(/'/g, "''");
+                // ADD VALUE IF NOT EXISTS keeps this idempotent. Postgres 12+
+                // permits this outside an explicit transaction (Neon is PG16).
+                await sequelize.query(`ALTER TYPE "${enumTypeName}" ADD VALUE IF NOT EXISTS '${escaped}'`);
+            } catch (err) {
+                logger.error(`[Auto-Sync] Failed to add ENUM value '${value}' to ${enumTypeName}: ${err.message}`);
+            }
+        }
+    }
 }
 
 export const syncDatabase = async () => {
@@ -100,13 +180,14 @@ export const syncDatabase = async () => {
         return;
     }
 
-    try {
-        logger.info('Starting database auto-synchronization...');
+    const dialect = sequelize.getDialect();
+    const isPostgres = dialect === 'postgres';
 
+    try {
+        logger.info(`Starting database auto-synchronization (${dialect})...`);
 
         // 1. Create missing tables (does not alter existing tables)
         await sequelize.sync();
-
 
         const queryInterface = sequelize.getQueryInterface();
         const models = sequelize.models;
@@ -155,10 +236,20 @@ export const syncDatabase = async () => {
                         // If column is 'uuid', populate unique UUIDv4 values for existing rows and add unique index
                         if (columnName === 'uuid') {
                             const crypto = await import('crypto');
-                            const rows = await sequelize.query(`SELECT id FROM \`${tableName}\` WHERE \`uuid\` IS NULL`, { type: sequelize.QueryTypes.SELECT });
+                            const quotedTable = queryInterface.quoteIdentifier(tableName);
+                            const quotedUuid = queryInterface.quoteIdentifier('uuid');
+                            const quotedId = queryInterface.quoteIdentifier('id');
+
+                            const rows = await sequelize.query(
+                                `SELECT ${quotedId} AS id FROM ${quotedTable} WHERE ${quotedUuid} IS NULL`,
+                                { type: sequelize.QueryTypes.SELECT }
+                            );
                             for (const row of rows) {
                                 const newUuid = crypto.randomUUID();
-                                await sequelize.query(`UPDATE \`${tableName}\` SET \`uuid\` = '${newUuid}' WHERE \`id\` = ${row.id}`);
+                                await sequelize.query(
+                                    `UPDATE ${quotedTable} SET ${quotedUuid} = :newUuid WHERE ${quotedId} = :id`,
+                                    { replacements: { newUuid, id: row.id } }
+                                );
                             }
                             try {
                                 await queryInterface.addIndex(tableName, ['uuid'], { unique: true, name: `${tableName}_uuid_unique` });
@@ -174,23 +265,34 @@ export const syncDatabase = async () => {
                 }
 
                 // ---- 3. Column already exists -> Check for TYPE / NULLABILITY mismatches ----
-                if (ALLOW_ALTER_COLUMN) {
-                    // Skip primary key and auto-increment columns (primary keys cannot be re-altered in MySQL)
-                    if (attribute.primaryKey || attribute.autoIncrement) {
+                if (!ALLOW_ALTER_COLUMN) continue;
+
+                // Skip primary key and auto-increment columns (primary keys cannot be re-altered)
+                if (attribute.primaryKey || attribute.autoIncrement) {
+                    continue;
+                }
+
+                const needsAlter = isColumnMismatched(existingColumn, attribute, dialect);
+
+                if (needsAlter) {
+                    if (isPostgres) {
+                        // Postgres type changes need an explicit USING cast and can
+                        // be destructive; surface the mismatch instead of guessing.
+                        logger.warn(`[Auto-Sync] Column mismatch on '${tableName}.${columnName}' (${existingColumn.type} -> ${getSequelizeTypeName(attribute.type, dialect)}). Skipped on Postgres — apply via a migration.`);
                         continue;
                     }
-
-                    const needsAlter = isColumnMismatched(existingColumn, attribute);
-
-                    if (needsAlter) {
-                        logger.info(`[Auto-Sync] Altering column '${columnName}' on '${tableName}' (type/allowNull changed)...`);
-                        try {
-                            await queryInterface.changeColumn(tableName, columnName, attribute);
-                        } catch (err) {
-                            logger.error(`[Auto-Sync] Failed to alter column '${columnName}' on '${tableName}':`, err.message);
-                        }
+                    logger.info(`[Auto-Sync] Altering column '${columnName}' on '${tableName}' (type/allowNull changed)...`);
+                    try {
+                        await queryInterface.changeColumn(tableName, columnName, attribute);
+                    } catch (err) {
+                        logger.error(`[Auto-Sync] Failed to alter column '${columnName}' on '${tableName}':`, err.message);
                     }
                 }
+            }
+
+            // ---- 4. Grow native Postgres ENUM types with newly added values ----
+            if (isPostgres) {
+                await syncPostgresEnumValues(tableName, modelAttributes);
             }
         }
 

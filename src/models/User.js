@@ -2,7 +2,7 @@ import pkg from 'sequelize';
 const { DataTypes, Op } = pkg;
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import sequelize from '../config/db.js';
+import sequelize, { isPostgres } from '../config/db.js';
 import { categories } from '../utils/businessCategories.js';
 
 const User = sequelize.define('User', {
@@ -80,8 +80,14 @@ const User = sequelize.define('User', {
             key: 'id'
         }
     },
+    // DB-enforced "only one Admin" guard. Both engines use a generated column
+    // kept UNIQUE so that a second row evaluating to 1 is rejected; every
+    // non-Admin row is NULL, and NULLs are exempt from the unique constraint.
+    // MySQL uses IF(); Postgres uses the standard CASE expression.
     adminUniqueCheck: {
-        type: 'INTEGER GENERATED ALWAYS AS (IF(role = "Admin", 1, NULL)) STORED',
+        type: isPostgres
+            ? "INTEGER GENERATED ALWAYS AS (CASE WHEN role = 'Admin' THEN 1 ELSE NULL END) STORED"
+            : 'INTEGER GENERATED ALWAYS AS (IF(role = "Admin", 1, NULL)) STORED',
         unique: true
     },
     shopname: {

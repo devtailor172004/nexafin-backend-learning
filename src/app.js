@@ -28,6 +28,8 @@ import notificationRoute from './routes/Admin/Notifications/notification.route.j
 import pineLabsRoute from './routes/Payment/PineLabs/pineLabs.route.js';
 import securePayOpsRoute from './routes/SecurePay/ops.route.js';
 import securePayReconciliationRoute from './routes/SecurePay/reconciliation.route.js';
+import securePaySettlementRoute from './routes/SecurePay/settlement.route.js';
+import pineLabsSandboxRouter, { sandboxEnabled } from './sandbox/pineLabsSandbox.js';
 import { globalLimiter, digilockerLimiter } from './middlewares/rateLimiter.js';
 import './models/Otp.js';
 import './models/Product.js';
@@ -110,6 +112,14 @@ app.use('/api/admin/notifications', notificationRoute);
 app.use('/api/payment/nxpay', pineLabsRoute);
 app.use('/api/securepay', securePayOpsRoute);
 app.use('/api/securepay/reconciliation', securePayReconciliationRoute);
+app.use('/api/securepay/settlements', securePaySettlementRoute);
+
+// Pine Labs Plural-compatible SANDBOX provider.
+// Point PINELABS_BASE_URL at it to exercise the entire payment pipeline with a
+// real HTTP provider, without production credentials. Never mounted in production.
+if (sandboxEnabled()) {
+    app.use('/sandbox/pinelabs', pineLabsSandboxRouter);
+}
 
 app.get('/public/api/digilocker/callback', digilockerLimiter, digilockerCallback);
 
