@@ -25,4 +25,4 @@ npm-debug.log*
 *.swp
 
 # Local tooling state
-.freebuff/
+.tooling-state/
