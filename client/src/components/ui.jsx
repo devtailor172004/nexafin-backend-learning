@@ -19,7 +19,7 @@ export function Card({ title, subtitle, actions, children, className = '' }) {
 
 export function Badge({ value, className = '' }) {
     return (
-        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${statusStyle(value)} ${className}`}>
+        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset ${statusStyle(value)} ${className}`}>
             {value ?? '—'}
         </span>
     );
@@ -36,9 +36,9 @@ export function StatCard({ label, value, hint, tone = 'default' }) {
 
     return (
         <div className="rounded-2xl border border-slate-800 bg-[#0e1526] p-4">
-            <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">{label}</p>
+            <p className="text-xs font-medium uppercase tracking-wider text-slate-400">{label}</p>
             <p className={`mt-1 text-2xl font-semibold tabular-nums ${tones[tone] || tones.default}`}>{value}</p>
-            {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
+            {hint && <p className="mt-1 text-xs text-slate-400">{hint}</p>}
         </div>
     );
 }
@@ -74,7 +74,7 @@ export function EmptyState({ title, description }) {
     return (
         <div className="py-10 text-center">
             <p className="text-sm font-medium text-slate-300">{title}</p>
-            {description && <p className="mx-auto mt-1 max-w-md text-xs text-slate-500">{description}</p>}
+            {description && <p className="mx-auto mt-1 max-w-md text-xs text-slate-400">{description}</p>}
         </div>
     );
 }
@@ -98,7 +98,7 @@ export function Field({ label, hint, children }) {
         <label className="block">
             <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-400">{label}</span>
             {children}
-            {hint && <span className="mt-1 block text-xs text-slate-500">{hint}</span>}
+            {hint && <span className="mt-1 block text-xs text-slate-400">{hint}</span>}
         </label>
     );
 }
@@ -106,7 +106,7 @@ export function Field({ label, hint, children }) {
 export function TextInput({ className = '', ...props }) {
     return (
         <input
-            className={`w-full rounded-lg border border-slate-700 bg-slate-900/70 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500/40 ${className}`}
+            className={`w-full rounded-lg border border-slate-700 bg-slate-900/70 px-3 py-2 text-sm text-slate-100 placeholder-slate-400 outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500/40 ${className}`}
             {...props}
         />
     );

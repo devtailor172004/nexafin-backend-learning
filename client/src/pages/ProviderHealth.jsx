@@ -63,9 +63,9 @@ function RoutingPreview() {
                     {decision.selected ? (
                         <div className="flex flex-wrap items-center justify-between gap-3">
                             <div>
-                                <p className="text-[11px] uppercase tracking-wider text-slate-500">Selected provider</p>
+                                <p className="text-xs uppercase tracking-wider text-slate-400">Selected provider</p>
                                 <p className="mt-0.5 text-sm font-semibold text-slate-100">{decision.selected.displayName}</p>
-                                <p className="mt-0.5 text-[11px] text-slate-500">
+                                <p className="mt-0.5 text-xs text-slate-400">
                                     {decision.selected.methods.join(', ')} · {decision.selected.currencies.join(', ')}
                                 </p>
                             </div>
@@ -83,7 +83,7 @@ function RoutingPreview() {
                 </div>
             )}
 
-            <p className="mt-3 text-[11px] text-slate-500">
+            <p className="mt-3 text-xs text-slate-400">
                 Failover policy: a payment is never moved to another provider while its outcome is unknown —
                 the status must be checked first. Only terminally failed payments may be retried elsewhere.
             </p>
@@ -122,7 +122,7 @@ export default function ProviderHealth() {
         <div className="space-y-5">
             <div>
                 <h1 className="text-lg font-semibold text-slate-100">Provider Health</h1>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-400">
                     24-hour rolling window · generated {data?.generatedAt ? new Date(data.generatedAt).toLocaleString('en-IN') : '—'}
                 </p>
             </div>
@@ -170,7 +170,7 @@ export default function ProviderHealth() {
                                 />
                             </div>
 
-                            <div className="mt-4 space-y-1.5 text-xs text-slate-500">
+                            <div className="mt-4 space-y-1.5 text-xs text-slate-400">
                                 <p>Integrated: {provider.integrated ? 'Yes' : 'No'} · Enabled: {provider.enabled ? 'Yes' : 'No'}</p>
                                 <p>Refunds: {provider.supportsRefunds ? 'Supported' : 'Not supported'} · Pre-auth: {provider.supportsPreAuth ? 'Supported' : 'Not supported'}</p>
                             </div>

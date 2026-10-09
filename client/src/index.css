@@ -23,6 +23,21 @@ body {
     color: #e2e8f0;
     font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    line-height: 1.55;
+}
+
+/* Keyboard focus must stay clearly visible on a dark console */
+:focus-visible {
+    outline: 2px solid var(--color-brand-400);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+::selection {
+    background-color: color-mix(in srgb, var(--color-brand-500) 45%, transparent);
+    color: #f8fafc;
 }
 
 /* Thin scrollbars that match the console theme */
@@ -54,4 +69,14 @@ body {
 
 .animate-punch {
     animation: punch 0.28s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
 }

@@ -8,7 +8,7 @@ function ModuleNotice({ title, module }) {
     return (
         <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
             <p className="text-xs font-medium text-slate-300">{title}</p>
-            <p className="mt-1 text-[11px] text-slate-500">
+            <p className="mt-1 text-xs text-slate-400">
                 {module?.implemented === false ? 'Not implemented yet — scheduled for a later phase.' : 'No records.'}
             </p>
         </div>
@@ -18,8 +18,8 @@ function ModuleNotice({ title, module }) {
 function ProfileEntry({ label, value, mono }) {
     return (
         <div className="rounded-lg bg-slate-900/60 p-3">
-            <p className="text-[10px] uppercase tracking-wide text-slate-500">{label}</p>
-            <p className={`mt-1 break-words font-medium text-slate-200 ${mono ? 'font-mono text-[11px]' : ''}`}>
+            <p className="text-[11px] uppercase tracking-wide text-slate-400">{label}</p>
+            <p className={`mt-1 break-words font-medium text-slate-200 ${mono ? 'font-mono text-xs' : ''}`}>
                 {value === null || value === undefined || value === '' ? '—' : String(value)}
             </p>
         </div>
@@ -108,7 +108,7 @@ export default function Customers() {
         <div className="space-y-5">
             <div>
                 <h1 className="text-lg font-semibold text-slate-100">Customer 360</h1>
-                <p className="text-xs text-slate-500">One view of a customer: full profile, KYC journey, payments, risk signals and timeline</p>
+                <p className="text-xs text-slate-400">One view of a customer: full profile, KYC journey, payments, risk signals and timeline</p>
             </div>
 
             <Card title="Look up a customer" subtitle="Pick from the directory or paste a customer UUID">
@@ -168,7 +168,7 @@ export default function Customers() {
                         }
                     >
                         <div className="mb-3 rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2">
-                            <p className="text-[10px] uppercase tracking-wide text-slate-500">Customer UUID</p>
+                            <p className="text-[11px] uppercase tracking-wide text-slate-400">Customer UUID</p>
                             <p className="mt-0.5 break-all font-mono text-xs text-sky-300">{p.uuid}</p>
                         </div>
                         <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
@@ -213,7 +213,7 @@ export default function Customers() {
                                 <span className="text-xs font-medium text-slate-300">
                                     {data.kyc.completionPercent ?? 0}% complete ({data.kyc.completed ?? 0}/{data.kyc.total ?? 0})
                                 </span>
-                                <span className={`text-[11px] font-semibold ${data.kyc.verified ? 'text-emerald-300' : 'text-amber-300'}`}>
+                                <span className={`text-xs font-semibold ${data.kyc.verified ? 'text-emerald-300' : 'text-amber-300'}`}>
                                     {data.kyc.verified ? 'All required steps complete' : 'Incomplete'}
                                 </span>
                             </div>
@@ -245,10 +245,10 @@ export default function Customers() {
                             {data.kyc.timeline?.length > 0 && (
                                 <ul className="mt-3 space-y-1.5">
                                     {data.kyc.timeline.map((step) => (
-                                        <li key={step.key} className="flex items-start justify-between gap-3 text-[11px]">
+                                        <li key={step.key} className="flex items-start justify-between gap-3 text-xs">
                                             <div>
                                                 <p className="text-slate-300">{step.label}</p>
-                                                <p className="text-slate-500">{step.detail}</p>
+                                                <p className="text-slate-400">{step.detail}</p>
                                             </div>
                                             <Badge value={step.status} />
                                         </li>
@@ -283,7 +283,7 @@ export default function Customers() {
                                         <li key={index} className="rounded-lg bg-slate-900/60 p-3">
                                             <p className="font-medium text-slate-200">{account.bankName || '—'}</p>
                                             <p className="text-slate-400">{account.accountHolderName} · {account.accountNumberMasked}</p>
-                                            <p className="text-slate-500">{account.ifscCode} · {account.branchName}</p>
+                                            <p className="text-slate-400">{account.ifscCode} · {account.branchName}</p>
                                         </li>
                                     ))}
                                 </ul>
@@ -293,15 +293,15 @@ export default function Customers() {
                         <Card title="Counts" subtitle="Records linked to this customer">
                             <div className="grid grid-cols-3 gap-3 text-center text-xs">
                                 <div className="rounded-lg bg-slate-900/60 p-3">
-                                    <p className="text-slate-500">Orders</p>
+                                    <p className="text-slate-400">Orders</p>
                                     <p className="mt-1 text-lg font-semibold text-slate-100">{data.counts.orders}</p>
                                 </div>
                                 <div className="rounded-lg bg-slate-900/60 p-3">
-                                    <p className="text-slate-500">Payments</p>
+                                    <p className="text-slate-400">Payments</p>
                                     <p className="mt-1 text-lg font-semibold text-slate-100">{data.counts.payments}</p>
                                 </div>
                                 <div className="rounded-lg bg-slate-900/60 p-3">
-                                    <p className="text-slate-500">Refunds</p>
+                                    <p className="text-slate-400">Refunds</p>
                                     <p className="mt-1 text-lg font-semibold text-slate-100">{data.counts.refunds}</p>
                                 </div>
                             </div>
@@ -320,7 +320,7 @@ export default function Customers() {
                             <div className="-mx-4 overflow-x-auto sm:mx-0">
                                 <table className="w-full min-w-[520px] text-left text-sm">
                                     <thead>
-                                        <tr className="border-b border-slate-800 text-[11px] uppercase tracking-wider text-slate-500">
+                                        <tr className="border-b border-slate-800 text-xs uppercase tracking-wider text-slate-400">
                                             <th className="px-3 py-2 font-medium">Date</th>
                                             <th className="px-3 py-2 font-medium">Amount</th>
                                             <th className="px-3 py-2 font-medium">Method</th>
@@ -352,8 +352,8 @@ export default function Customers() {
                                         <span className="absolute -left-[23px] top-1.5 h-2 w-2 rounded-full bg-sky-500" />
                                         <div className="flex flex-wrap items-center gap-2">
                                             <span className="font-semibold text-slate-200">{event.event}</span>
-                                            <span className="tabular-nums text-slate-500">{formatTime(event.at)}</span>
-                                            <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] uppercase text-slate-400">{event.source}</span>
+                                            <span className="tabular-nums text-slate-400">{formatTime(event.at)}</span>
+                                            <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px] uppercase text-slate-400">{event.source}</span>
                                         </div>
                                         {event.message && <p className="mt-1 text-slate-400">{event.message}</p>}
                                     </li>

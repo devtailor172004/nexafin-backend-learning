@@ -43,7 +43,7 @@ function ExceptionActionModal({ exception, onClose, onDone }) {
             <form onSubmit={submit} className="relative w-full max-w-md space-y-4 rounded-2xl border border-slate-800 bg-[#0b1120] p-5">
                 <div>
                     <h2 className="text-sm font-semibold text-slate-100">Exception workflow</h2>
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="mt-1 text-xs text-slate-400">
                         {exception.type} · {exception.matchKey || '—'} · currently {exception.status}
                     </p>
                 </div>
@@ -150,7 +150,7 @@ export default function Reconciliation() {
             <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
                     <h1 className="text-lg font-semibold text-slate-100">Reconciliation Center</h1>
-                    <p className="text-xs text-slate-500">Internal ledger vs provider report, with an exception workflow</p>
+                    <p className="text-xs text-slate-400">Internal ledger vs provider report, with an exception workflow</p>
                 </div>
                 <Button onClick={startRun} disabled={running}>{running ? 'Running…' : 'Run reconciliation'}</Button>
             </div>
@@ -181,7 +181,7 @@ export default function Reconciliation() {
                     <div className="-mx-4 overflow-x-auto sm:mx-0">
                         <table className="w-full min-w-[680px] text-left text-sm">
                             <thead>
-                                <tr className="border-b border-slate-800 text-[11px] uppercase tracking-wider text-slate-500">
+                                <tr className="border-b border-slate-800 text-xs uppercase tracking-wider text-slate-400">
                                     <th className="px-3 py-2 font-medium">Completed</th>
                                     <th className="px-3 py-2 font-medium">Source</th>
                                     <th className="px-3 py-2 font-medium">Period</th>
@@ -197,11 +197,11 @@ export default function Reconciliation() {
                                         <td className="whitespace-nowrap px-3 py-2 text-xs text-slate-400">{formatDateTime(run.completedAt)}</td>
                                         <td className="px-3 py-2">
                                             <Badge value={run.source === 'SIMULATED' ? 'PENDING' : 'PROCESSED'} />
-                                            <span className="ml-2 text-[11px] text-slate-400">
+                                            <span className="ml-2 text-xs text-slate-400">
                                                 {run.source === 'SIMULATED' ? 'Simulated report' : 'Provider report'}
                                             </span>
                                         </td>
-                                        <td className="whitespace-nowrap px-3 py-2 text-[11px] text-slate-500">
+                                        <td className="whitespace-nowrap px-3 py-2 text-xs text-slate-400">
                                             {formatDateTime(run.periodStart)} → {formatDateTime(run.periodEnd)}
                                         </td>
                                         <td className="px-3 py-2 tabular-nums text-slate-300">{formatNumber(run.internalCount)}</td>
@@ -236,7 +236,7 @@ export default function Reconciliation() {
                     <div className="-mx-4 overflow-x-auto sm:mx-0">
                         <table className="w-full min-w-[860px] text-left text-sm">
                             <thead>
-                                <tr className="border-b border-slate-800 text-[11px] uppercase tracking-wider text-slate-500">
+                                <tr className="border-b border-slate-800 text-xs uppercase tracking-wider text-slate-400">
                                     <th className="px-3 py-2 font-medium">Type</th>
                                     <th className="px-3 py-2 font-medium">Severity</th>
                                     <th className="px-3 py-2 font-medium">Reference</th>
@@ -251,9 +251,9 @@ export default function Reconciliation() {
                                     <tr key={exception.uuid} className="border-b border-slate-900/70 last:border-0 hover:bg-slate-900/40">
                                         <td className="px-3 py-2 text-xs font-medium text-slate-200">{exception.type}</td>
                                         <td className="px-3 py-2"><Badge value={severityTone(exception.severity)} /></td>
-                                        <td className="px-3 py-2 text-[11px] text-slate-400">
+                                        <td className="px-3 py-2 text-xs text-slate-400">
                                             <p className="font-mono">{exception.merchantPaymentReference || '—'}</p>
-                                            {exception.run?.source === 'SIMULATED' && <p className="text-[10px] text-amber-400/80">simulated report</p>}
+                                            {exception.run?.source === 'SIMULATED' && <p className="text-[11px] text-amber-400/80">simulated report</p>}
                                         </td>
                                         <td className="px-3 py-2 text-xs text-slate-400">
                                             {exception.expectedAmount ?? '—'} {exception.expectedStatus || ''}

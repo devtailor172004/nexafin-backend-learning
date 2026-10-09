@@ -42,7 +42,7 @@ function NavItems({ onNavigate }) {
         <nav className="flex flex-col gap-4">
             {NAV_GROUPS.map((group) => (
                 <div key={group.label}>
-                    <p className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
+                    <p className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                         {group.label}
                     </p>
                     <div className="flex flex-col gap-1">
@@ -63,7 +63,7 @@ function NavItems({ onNavigate }) {
                                 <span aria-hidden="true">{item.icon}</span>
                                 <span className="flex-1">{item.label}</span>
                                 {item.badge && (
-                                    <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-300 ring-1 ring-inset ring-emerald-500/30">
+                                    <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-300 ring-1 ring-inset ring-emerald-500/30">
                                         {item.badge}
                                     </span>
                                 )}
@@ -124,12 +124,12 @@ export default function Layout() {
             <aside className="hidden w-60 shrink-0 flex-col overflow-y-auto border-r border-slate-800 bg-[#0b1120] p-4 lg:flex">
                 <div className="mb-6">
                     <p className="text-sm font-semibold tracking-wide text-slate-100">SecurePay Lab</p>
-                    <p className="mt-0.5 text-[11px] text-slate-500">Payments · KYC · Operations Intelligence</p>
+                    <p className="mt-0.5 text-xs text-slate-400">Payments · KYC · Operations Intelligence</p>
                 </div>
                 <NavItems />
                 <div className="mt-auto border-t border-slate-800 pt-4">
                     <p className="truncate text-xs text-slate-400">{user?.fullName || 'Admin'}</p>
-                    <p className="truncate text-[11px] text-slate-500">{user?.email}</p>
+                    <p className="truncate text-xs text-slate-400">{user?.email}</p>
                     <button onClick={handleLogout} className="mt-3 w-full rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-700">
                         Sign out
                     </button>

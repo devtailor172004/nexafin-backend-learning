@@ -71,7 +71,7 @@ export function Toaster() {
                     role="status"
                     className={`pointer-events-auto flex items-start gap-2 rounded-xl border px-3.5 py-2.5 text-xs shadow-lg shadow-black/40 backdrop-blur ${VARIANT_STYLES[toast.variant] || VARIANT_STYLES.info}`}
                 >
-                    <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-white/10 text-[10px] font-bold">
+                    <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-white/10 text-[11px] font-bold">
                         {VARIANT_ICON[toast.variant] || VARIANT_ICON.info}
                     </span>
                     <p className="flex-1 leading-snug">{toast.message}</p>

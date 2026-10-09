@@ -135,7 +135,7 @@ export default function Simulator() {
         <div className="space-y-5">
             <div>
                 <h1 className="text-lg font-semibold text-slate-100">Payment Simulator</h1>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-400">
                     Creates a real order + payment through the live APIs, then waits for the provider webhook.
                 </p>
             </div>
@@ -220,7 +220,7 @@ export default function Simulator() {
                 <div className="space-y-4">
                     <Card title="Flow trace" subtitle="Each call the console makes, in order">
                         {steps.length === 0 ? (
-                            <p className="py-8 text-center text-sm text-slate-500">
+                            <p className="py-8 text-center text-sm text-slate-400">
                                 Run a transaction to see the pipeline execute.
                             </p>
                         ) : (
@@ -229,7 +229,7 @@ export default function Simulator() {
                                     <li key={index} className="flex items-start justify-between gap-3 border-b border-slate-900/70 pb-2 last:border-0">
                                         <div>
                                             <p className={`text-xs font-medium ${TONE[step.tone]}`}>{step.label}</p>
-                                            <p className="font-mono text-[10px] text-slate-500">{step.detail}</p>
+                                            <p className="font-mono text-[11px] text-slate-400">{step.detail}</p>
                                         </div>
                                     </li>
                                 ))}
@@ -241,16 +241,16 @@ export default function Simulator() {
                         <Card title="Result" subtitle="Read back from the operations API">
                             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                                 <div>
-                                    <p className="text-[11px] uppercase tracking-wider text-slate-500">Amount</p>
+                                    <p className="text-xs uppercase tracking-wider text-slate-400">Amount</p>
                                     <p className="text-lg font-semibold text-slate-100">{formatCurrency(result.amount)}</p>
                                 </div>
                                 <div>
-                                    <p className="text-[11px] uppercase tracking-wider text-slate-500">Status</p>
+                                    <p className="text-xs uppercase tracking-wider text-slate-400">Status</p>
                                     <div className="mt-0.5"><Badge value={result.status} /></div>
                                 </div>
                                 <div className="col-span-2">
-                                    <p className="text-[11px] uppercase tracking-wider text-slate-500">Payment UUID</p>
-                                    <p className="font-mono text-[11px] text-slate-300">{result.paymentUuid}</p>
+                                    <p className="text-xs uppercase tracking-wider text-slate-400">Payment UUID</p>
+                                    <p className="font-mono text-xs text-slate-300">{result.paymentUuid}</p>
                                 </div>
                             </div>
 
@@ -258,13 +258,13 @@ export default function Simulator() {
                                 <p className="mb-2 text-xs font-semibold text-slate-300">Timeline</p>
                                 <ul className="space-y-1.5">
                                     {result.timeline.map((event, index) => (
-                                        <li key={index} className="flex items-center justify-between gap-3 text-[11px]">
+                                        <li key={index} className="flex items-center justify-between gap-3 text-xs">
                                             <span className="text-slate-400">
                                                 <span className="text-slate-200">{event.event}</span>
                                                 {event.providerEvent ? ` · ${event.providerEvent}` : ''}
                                                 {event.from || event.to ? ` · ${event.from || '∅'} → ${event.to || '∅'}` : ''}
                                             </span>
-                                            <span className="whitespace-nowrap text-slate-500">
+                                            <span className="whitespace-nowrap text-slate-400">
                                                 {event.source} · {formatDateTime(event.at)}
                                             </span>
                                         </li>
@@ -272,7 +272,7 @@ export default function Simulator() {
                                 </ul>
                             </div>
 
-                            <p className="mt-3 text-[11px] text-slate-500">
+                            <p className="mt-3 text-xs text-slate-400">
                                 Now open <span className="text-slate-300">Live Ops</span> and{' '}
                                 <span className="text-slate-300">Dashboard</span> — the numbers there move in real time from this event.
                             </p>

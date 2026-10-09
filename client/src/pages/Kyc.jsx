@@ -216,7 +216,7 @@ export default function Kyc() {
             <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
                     <h1 className="text-lg font-semibold text-slate-100">KYC Review</h1>
-                    <p className="text-xs text-slate-500">Full applicant details, journey, documents and camera liveness testing</p>
+                    <p className="text-xs text-slate-400">Full applicant details, journey, documents and camera liveness testing</p>
                 </div>
                 <Select value={status} onChange={(e) => setStatus(e.target.value)} className="w-40">
                     {STATUS_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
@@ -237,7 +237,7 @@ export default function Kyc() {
                     <div className="-mx-4 overflow-x-auto sm:mx-0">
                         <table className="w-full min-w-[720px] text-left text-sm">
                             <thead>
-                                <tr className="border-b border-slate-800 text-[11px] uppercase tracking-wider text-slate-500">
+                                <tr className="border-b border-slate-800 text-xs uppercase tracking-wider text-slate-400">
                                     <th className="px-3 py-2 font-medium">Merchant</th>
                                     <th className="px-3 py-2 font-medium">Contact</th>
                                     <th className="px-3 py-2 font-medium">DOB</th>
@@ -252,7 +252,7 @@ export default function Kyc() {
                                     <tr key={profile.uuid} className="border-b border-slate-900/70 last:border-0 hover:bg-slate-900/40">
                                         <td className="px-3 py-2">
                                             <p className="text-slate-200">{profile.fullName}</p>
-                                            <p className="font-mono text-[10px] text-slate-500">{profile.uuid}</p>
+                                            <p className="font-mono text-[11px] text-slate-400">{profile.uuid}</p>
                                         </td>
                                         <td className="px-3 py-2 text-xs text-slate-400">
                                             <p>{profile.email}</p>
@@ -285,12 +285,12 @@ export default function Kyc() {
                         <div className="flex flex-wrap items-start justify-between gap-2">
                             <div>
                                 <h2 className="text-sm font-semibold text-slate-100">KYC review — {active.fullName}</h2>
-                                <p className="mt-1 text-xs text-slate-500">{active.email} · {active.mobile}</p>
-                                <p className="mt-0.5 font-mono text-[10px] text-slate-600">{active.uuid}</p>
+                                <p className="mt-1 text-xs text-slate-400">{active.email} · {active.mobile}</p>
+                                <p className="mt-0.5 font-mono text-[11px] text-slate-400">{active.uuid}</p>
                             </div>
                             <div className="flex items-center gap-2">
                                 {journey && <Badge value={journey.kycStatus} />}
-                                <button type="button" className="text-slate-500 hover:text-slate-300" onClick={() => setActive(null)}>✕</button>
+                                <button type="button" className="text-slate-400 hover:text-slate-300" onClick={() => setActive(null)}>✕</button>
                             </div>
                         </div>
 
@@ -318,7 +318,7 @@ export default function Kyc() {
                                             Completion {journey.completionPercent}% ({journey.completed}/{journey.total})
                                         </p>
                                         {profile?.kycRejectionReason && (
-                                            <span className="text-[11px] text-rose-300">{profile.kycRejectionReason}</span>
+                                            <span className="text-xs text-rose-300">{profile.kycRejectionReason}</span>
                                         )}
                                     </div>
                                     <DetailGrid entries={profileEntries} />
@@ -335,10 +335,10 @@ export default function Kyc() {
                                     </div>
                                     <ul className="space-y-1.5">
                                         {journey.steps.map((step) => (
-                                            <li key={step.key} className="flex items-start justify-between gap-3 text-[11px]">
+                                            <li key={step.key} className="flex items-start justify-between gap-3 text-xs">
                                                 <div>
                                                     <p className="text-slate-300">{step.label}</p>
-                                                    <p className="text-slate-500">{step.detail}</p>
+                                                    <p className="text-slate-400">{step.detail}</p>
                                                 </div>
                                                 <Badge value={step.status} />
                                             </li>
@@ -346,7 +346,7 @@ export default function Kyc() {
                                     </ul>
 
                                     {journey.blockers?.length > 0 && (
-                                        <div className="rounded border border-rose-900/60 bg-rose-950/20 p-2 text-[11px] text-rose-200">
+                                        <div className="rounded border border-rose-900/60 bg-rose-950/20 p-2 text-xs text-rose-200">
                                             <p className="font-semibold">Blockers</p>
                                             <ul className="list-disc pl-4">
                                                 {journey.blockers.map((blocker, index) => <li key={index}>{blocker}</li>)}
@@ -355,7 +355,7 @@ export default function Kyc() {
                                     )}
 
                                     {journey.missing?.length > 0 && (
-                                        <div className="rounded border border-amber-900/60 bg-amber-950/20 p-2 text-[11px] text-amber-200">
+                                        <div className="rounded border border-amber-900/60 bg-amber-950/20 p-2 text-xs text-amber-200">
                                             <p className="font-semibold">Missing</p>
                                             <ul className="list-disc pl-4">
                                                 {journey.missing.map((item, index) => <li key={index}>{item}</li>)}
@@ -365,9 +365,9 @@ export default function Kyc() {
 
                                     {documents.length > 0 && (
                                         <div className="space-y-1.5">
-                                            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Documents</p>
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Documents</p>
                                             {documents.map((doc) => (
-                                                <div key={doc.uuid || doc.type} className="flex items-center justify-between gap-2 rounded bg-slate-900/50 px-2 py-1.5 text-[11px]">
+                                                <div key={doc.uuid || doc.type} className="flex items-center justify-between gap-2 rounded bg-slate-900/50 px-2 py-1.5 text-xs">
                                                     <span className="text-slate-300">
                                                         {doc.type} <Badge value={doc.status} />
                                                         {doc.rejectionReason && <span className="ml-1 text-rose-300">({doc.rejectionReason})</span>}
@@ -409,7 +409,7 @@ export default function Kyc() {
                             {passwordMissing && (
                                 <div className="space-y-2 rounded-lg border border-amber-900/60 bg-amber-950/30 p-3">
                                     <p className="text-xs font-semibold text-amber-200">KYC private password not set yet</p>
-                                    <p className="text-[11px] text-amber-300/80">
+                                    <p className="text-xs text-amber-300/80">
                                         The backend requires a private password for every KYC change (documents and decisions). Set it once — it will be reused for this action.
                                     </p>
                                     <div className="flex flex-col gap-2 sm:flex-row">

@@ -56,7 +56,7 @@ export default function LiveOps() {
             <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
                     <h1 className="text-lg font-semibold text-slate-100">Live Operations</h1>
-                    <p className="text-xs text-slate-500">Streaming payment events and recent transactions</p>
+                    <p className="text-xs text-slate-400">Streaming payment events and recent transactions</p>
                 </div>
                 <div className="flex items-center gap-3">
                     <Badge value={badge.text} />
@@ -87,14 +87,14 @@ export default function LiveOps() {
                             {events.map((event) => (
                                 <li key={event.id} className="animate-punch rounded-lg border border-slate-800 bg-slate-900/50 p-2.5">
                                     <div className="flex items-center justify-between gap-2">
-                                        <span className="text-[11px] font-semibold text-sky-300">{event.eventType || event.kind || 'event'}</span>
-                                        <span className="text-[11px] tabular-nums text-slate-500">{formatTime(event.at)}</span>
+                                        <span className="text-xs font-semibold text-sky-300">{event.eventType || event.kind || 'event'}</span>
+                                        <span className="text-xs tabular-nums text-slate-400">{formatTime(event.at)}</span>
                                     </div>
                                     {event.message && <p className="mt-1 text-xs text-slate-400">{event.message}</p>}
                                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                                         {event.statusTo && <Badge value={event.statusTo} />}
                                         {event.isRejected && <Badge value="REJECTED" />}
-                                        {event.source && <span className="text-[10px] uppercase tracking-wide text-slate-500">{event.source}</span>}
+                                        {event.source && <span className="text-[11px] uppercase tracking-wide text-slate-400">{event.source}</span>}
                                     </div>
                                 </li>
                             ))}
@@ -124,7 +124,7 @@ export default function LiveOps() {
                         <div className="-mx-4 overflow-x-auto sm:mx-0">
                             <table className="w-full min-w-[640px] text-left text-sm">
                                 <thead>
-                                    <tr className="border-b border-slate-800 text-[11px] uppercase tracking-wider text-slate-500">
+                                    <tr className="border-b border-slate-800 text-xs uppercase tracking-wider text-slate-400">
                                         <th className="px-3 py-2 font-medium">Time</th>
                                         <th className="px-3 py-2 font-medium">Payment</th>
                                         <th className="px-3 py-2 font-medium">Amount</th>
@@ -137,14 +137,14 @@ export default function LiveOps() {
                                         <tr key={tx.paymentId} className="border-b border-slate-900/70 last:border-0 hover:bg-slate-900/40">
                                             <td className="whitespace-nowrap px-3 py-2 text-xs text-slate-400">{formatDateTime(tx.createdAt)}</td>
                                             <td className="px-3 py-2">
-                                                <p className="font-mono text-[11px] text-slate-300">{String(tx.paymentId).slice(0, 8)}…</p>
-                                                <p className="text-[11px] text-slate-500">{tx.customerEmail || '—'}</p>
+                                                <p className="font-mono text-xs text-slate-300">{String(tx.paymentId).slice(0, 8)}…</p>
+                                                <p className="text-xs text-slate-400">{tx.customerEmail || '—'}</p>
                                             </td>
                                             <td className="whitespace-nowrap px-3 py-2 tabular-nums text-slate-200">{formatCurrency(tx.amount, tx.currency)}</td>
                                             <td className="px-3 py-2 text-xs text-slate-400">{tx.method}</td>
                                             <td className="px-3 py-2">
                                                 <Badge value={tx.status} />
-                                                {tx.errorCode && <p className="mt-1 text-[10px] text-rose-300">{tx.errorCode}</p>}
+                                                {tx.errorCode && <p className="mt-1 text-[11px] text-rose-300">{tx.errorCode}</p>}
                                             </td>
                                         </tr>
                                     ))}

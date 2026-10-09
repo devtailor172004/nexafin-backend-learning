@@ -31,23 +31,23 @@ function ScenarioResult({ report }) {
             <div className="space-y-4 text-sm">
                 <div className="grid gap-3 sm:grid-cols-2">
                     <div className="rounded-xl border border-slate-800 p-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">What this tests</p>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">What this tests</p>
                         <p className="mt-1 text-xs text-slate-300">{report.whatItTests}</p>
                     </div>
                     <div className="rounded-xl border border-slate-800 p-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Expected</p>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Expected</p>
                         <p className="mt-1 text-xs text-slate-300">{report.expected}</p>
                     </div>
                 </div>
 
                 <div className="rounded-xl border border-slate-800 p-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Actual result</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Actual result</p>
                     <p className="mt-1 text-xs text-slate-300">{report.actual}</p>
                     {report.error && <p className="mt-1 text-xs text-rose-300">{report.error}</p>}
                 </div>
 
                 <div>
-                    <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Steps</p>
+                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Steps</p>
                     <ol className="space-y-1.5">
                         {(report.steps || []).map((step, index) => (
                             <li key={`${step.name}-${index}`} className="flex items-start gap-2 rounded-lg border border-slate-800 px-3 py-2">
@@ -56,7 +56,7 @@ function ScenarioResult({ report }) {
                                 </span>
                                 <div className="min-w-0">
                                     <p className="text-xs font-medium text-slate-200">{step.name}</p>
-                                    <p className="text-[11px] text-slate-400">{step.detail}</p>
+                                    <p className="text-xs text-slate-400">{step.detail}</p>
                                 </div>
                             </li>
                         ))}
@@ -66,32 +66,32 @@ function ScenarioResult({ report }) {
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                     {report.riskScore !== undefined && (
                         <div className="rounded-xl border border-slate-800 p-3">
-                            <p className="text-[11px] uppercase tracking-wide text-slate-500">Risk score</p>
+                            <p className="text-xs uppercase tracking-wide text-slate-400">Risk score</p>
                             <p className="mt-0.5 text-lg tabular-nums text-slate-100">{report.riskScore}</p>
                         </div>
                     )}
                     {report.decision && (
                         <div className="rounded-xl border border-slate-800 p-3">
-                            <p className="text-[11px] uppercase tracking-wide text-slate-500">Decision</p>
+                            <p className="text-xs uppercase tracking-wide text-slate-400">Decision</p>
                             <div className="mt-1"><Badge value={report.decision} /></div>
                         </div>
                     )}
                     {report.ledgerChanged !== undefined && (
                         <div className="rounded-xl border border-slate-800 p-3">
-                            <p className="text-[11px] uppercase tracking-wide text-slate-500">Ledger changed</p>
+                            <p className="text-xs uppercase tracking-wide text-slate-400">Ledger changed</p>
                             <p className="mt-0.5 text-sm text-slate-100">{report.ledgerChanged ? 'Yes' : 'No'}</p>
                         </div>
                     )}
                     {report.rulesTriggered?.length > 0 && (
                         <div className="rounded-xl border border-slate-800 p-3">
-                            <p className="text-[11px] uppercase tracking-wide text-slate-500">Rules</p>
-                            <p className="mt-0.5 text-[11px] text-amber-300">{report.rulesTriggered.join(', ')}</p>
+                            <p className="text-xs uppercase tracking-wide text-slate-400">Rules</p>
+                            <p className="mt-0.5 text-xs text-amber-300">{report.rulesTriggered.join(', ')}</p>
                         </div>
                     )}
                 </div>
 
                 {(report.riskEventId || report.incidentId || report.correlationId) && (
-                    <div className="flex flex-wrap gap-3 text-[11px] text-slate-500">
+                    <div className="flex flex-wrap gap-3 text-xs text-slate-400">
                         {report.riskEventId && <span>risk event: <span className="font-mono">{report.riskEventId}</span></span>}
                         {report.incidentId && <span>incident: <span className="font-mono">{report.incidentId}</span></span>}
                         {report.correlationId && <span>correlation: <span className="font-mono">{report.correlationId}</span></span>}
@@ -156,11 +156,11 @@ export default function FraudLab() {
             <header className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <h1 className="text-lg font-semibold text-slate-100">Fraud Lab</h1>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-slate-400">
                         Run safe, repeatable security scenarios against synthetic sandbox retailers.
                     </p>
                 </div>
-                <span className="rounded-full bg-amber-500/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-300 ring-1 ring-inset ring-amber-500/30">
+                <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-300 ring-1 ring-inset ring-amber-500/30">
                     Sandbox
                 </span>
             </header>
@@ -191,7 +191,7 @@ export default function FraudLab() {
                                         <span className="font-mono text-xs text-sky-300">{scenario.id}</span>
                                         <span className="text-sm text-slate-200">{scenario.name}</span>
                                     </div>
-                                    <p className="mt-0.5 text-[11px] text-slate-500">{scenario.description}</p>
+                                    <p className="mt-0.5 text-xs text-slate-400">{scenario.description}</p>
                                 </button>
                             </li>
                         ))}
@@ -217,7 +217,7 @@ export default function FraudLab() {
 
                             {current && (
                                 <div className="rounded-xl border border-slate-800 p-3">
-                                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Expected result</p>
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Expected result</p>
                                     <p className="mt-1 text-xs text-slate-300">{current.expected}</p>
                                 </div>
                             )}
@@ -245,7 +245,7 @@ export default function FraudLab() {
                                             <span className="font-mono text-sky-300">{run.scenario}</span> {run.name}
                                         </span>
                                         <span className="flex items-center gap-2">
-                                            <span className="text-slate-500">{formatDateTime(run.at)}</span>
+                                            <span className="text-slate-400">{formatDateTime(run.at)}</span>
                                             <Badge value={run.passed ? 'PASSED' : 'FAILED'} />
                                         </span>
                                     </li>

@@ -17,13 +17,13 @@ function TimelineList({ timeline }) {
                     <span className={`absolute -left-[23px] top-1.5 h-2.5 w-2.5 rounded-full ring-2 ring-[#0e1526] ${item.rejected ? 'bg-rose-500' : 'bg-sky-500'}`} />
                     <div className="flex flex-wrap items-center gap-2">
                         <span className="text-xs font-semibold text-slate-200">{item.event}</span>
-                        <span className="text-[11px] tabular-nums text-slate-500">{formatTime(item.at)}</span>
+                        <span className="text-xs tabular-nums text-slate-400">{formatTime(item.at)}</span>
                         {item.from || item.to ? (
-                            <span className="text-[11px] text-slate-500">
+                            <span className="text-xs text-slate-400">
                                 {item.from || '—'} → {item.to || '—'}
                             </span>
                         ) : null}
-                        <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-slate-400">{item.source}</span>
+                        <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px] uppercase tracking-wide text-slate-400">{item.source}</span>
                     </div>
                     {item.message && <p className="mt-1 text-xs text-slate-400">{item.message}</p>}
                 </li>
@@ -69,7 +69,7 @@ function PaymentDetail({ paymentId, onClose }) {
             <aside className="relative h-full w-full max-w-xl overflow-y-auto border-l border-slate-800 bg-[#0b1120] p-4 sm:p-6">
                 <div className="mb-4 flex items-start justify-between gap-3">
                     <div>
-                        <p className="text-[11px] uppercase tracking-wider text-slate-500">Payment detail</p>
+                        <p className="text-xs uppercase tracking-wider text-slate-400">Payment detail</p>
                         <p className="mt-1 break-all font-mono text-xs text-slate-300">{paymentId}</p>
                     </div>
                     <Button variant="secondary" onClick={onClose}>Close</Button>
@@ -85,27 +85,27 @@ function PaymentDetail({ paymentId, onClose }) {
                             <Card title="Why this payment is in this state" subtitle="Derived from the event timeline">
                                 <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-3">
                                     <div className="rounded-lg bg-slate-900/60 p-3">
-                                        <p className="text-slate-500">Status</p>
+                                        <p className="text-slate-400">Status</p>
                                         <div className="mt-1"><Badge value={explain.status} /></div>
                                     </div>
                                     <div className="rounded-lg bg-slate-900/60 p-3">
-                                        <p className="text-slate-500">Stage</p>
+                                        <p className="text-slate-400">Stage</p>
                                         <p className="mt-1 font-medium text-slate-200">{explain.stage}</p>
                                     </div>
                                     <div className="rounded-lg bg-slate-900/60 p-3">
-                                        <p className="text-slate-500">Provider</p>
+                                        <p className="text-slate-400">Provider</p>
                                         <p className="mt-1 font-medium text-slate-200">{explain.provider}</p>
                                     </div>
                                     <div className="rounded-lg bg-slate-900/60 p-3">
-                                        <p className="text-slate-500">Error code</p>
+                                        <p className="text-slate-400">Error code</p>
                                         <p className="mt-1 font-medium text-slate-200">{explain.errorCode || '—'}</p>
                                     </div>
                                     <div className="rounded-lg bg-slate-900/60 p-3">
-                                        <p className="text-slate-500">Webhook received</p>
+                                        <p className="text-slate-400">Webhook received</p>
                                         <p className="mt-1 font-medium text-slate-200">{explain.webhookReceived ? 'Yes' : 'No'}</p>
                                     </div>
                                     <div className="rounded-lg bg-slate-900/60 p-3">
-                                        <p className="text-slate-500">Retry</p>
+                                        <p className="text-slate-400">Retry</p>
                                         <p className={`mt-1 font-medium ${explain.retryRecommended ? 'text-emerald-300' : 'text-slate-300'}`}>
                                             {explain.failed ? (explain.retryRecommended ? 'Recommended' : 'Not recommended') : 'Not applicable'}
                                         </p>
@@ -117,7 +117,7 @@ function PaymentDetail({ paymentId, onClose }) {
                                     </p>
                                 )}
                                 {explain.webhook && (
-                                    <p className="mt-3 text-[11px] text-slate-500">
+                                    <p className="mt-3 text-xs text-slate-400">
                                         Last webhook: {explain.webhook.eventType} · {explain.webhook.status} · attempts {explain.webhook.attempts} ·
                                         signature {explain.webhook.signatureVerified ? 'verified' : 'not verified'}
                                     </p>
@@ -169,7 +169,7 @@ export default function Payments() {
         <div className="space-y-5">
             <div>
                 <h1 className="text-lg font-semibold text-slate-100">Payments</h1>
-                <p className="text-xs text-slate-500">Search, inspect and explain any payment</p>
+                <p className="text-xs text-slate-400">Search, inspect and explain any payment</p>
             </div>
 
             <ErrorNotice message={error} onRetry={load} />
@@ -198,7 +198,7 @@ export default function Payments() {
                     <div className="-mx-4 overflow-x-auto sm:mx-0">
                         <table className="w-full min-w-[720px] text-left text-sm">
                             <thead>
-                                <tr className="border-b border-slate-800 text-[11px] uppercase tracking-wider text-slate-500">
+                                <tr className="border-b border-slate-800 text-xs uppercase tracking-wider text-slate-400">
                                     <th className="px-3 py-2 font-medium">Created</th>
                                     <th className="px-3 py-2 font-medium">Payment</th>
                                     <th className="px-3 py-2 font-medium">Customer</th>
@@ -212,7 +212,7 @@ export default function Payments() {
                                 {rows.map((row) => (
                                     <tr key={row.paymentId} className="border-b border-slate-900/70 last:border-0 hover:bg-slate-900/40">
                                         <td className="whitespace-nowrap px-3 py-2 text-xs text-slate-400">{formatDateTime(row.createdAt)}</td>
-                                        <td className="px-3 py-2 font-mono text-[11px] text-slate-300">{String(row.paymentId).slice(0, 8)}…</td>
+                                        <td className="px-3 py-2 font-mono text-xs text-slate-300">{String(row.paymentId).slice(0, 8)}…</td>
                                         <td className="px-3 py-2 text-xs text-slate-400">{row.customerEmail || '—'}</td>
                                         <td className="whitespace-nowrap px-3 py-2 tabular-nums text-slate-200">{formatCurrency(row.amount, row.currency)}</td>
                                         <td className="px-3 py-2 text-xs text-slate-400">{row.method}</td>

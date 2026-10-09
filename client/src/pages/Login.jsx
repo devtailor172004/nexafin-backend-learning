@@ -69,7 +69,7 @@ export default function Login() {
                         {busy ? 'Signing in…' : 'Sign in'}
                     </Button>
 
-                    <p className="text-center text-[11px] text-slate-500">
+                    <p className="text-center text-xs text-slate-400">
                         Admin credentials are required to access the operations layer.
                     </p>
                 </form>

@@ -97,7 +97,7 @@ function Overview({ onOpenIncident }) {
                                 </p>
                             )}
                         </div>
-                    ) : <p className="text-sm text-slate-500">Not checked.</p>}
+                    ) : <p className="text-sm text-slate-400">Not checked.</p>}
                 </Card>
 
                 <Card title="Ledger invariants" subtitle="Double-entry balance protection">
@@ -118,7 +118,7 @@ function Overview({ onOpenIncident }) {
                                 </span>
                             </div>
                         </div>
-                    ) : <p className="text-sm text-slate-500">Not checked.</p>}
+                    ) : <p className="text-sm text-slate-400">Not checked.</p>}
                 </Card>
 
                 <Card title="Recent incidents" subtitle="Newest 5">
@@ -136,7 +136,7 @@ function Overview({ onOpenIncident }) {
                                             <span className="truncate text-sm text-slate-200">{incident.title}</span>
                                             <Badge value={incident.severity} />
                                         </div>
-                                        <p className="mt-0.5 text-[11px] text-slate-500">{formatDateTime(incident.createdAt)}</p>
+                                        <p className="mt-0.5 text-xs text-slate-400">{formatDateTime(incident.createdAt)}</p>
                                     </button>
                                 </li>
                             ))}
@@ -255,7 +255,7 @@ function EventExplorer({ selectedId, onSelected }) {
                         <div className="overflow-x-auto">
                             <table className="w-full text-left text-sm">
                                 <thead>
-                                    <tr className="text-[11px] uppercase tracking-wide text-slate-500">
+                                    <tr className="text-xs uppercase tracking-wide text-slate-400">
                                         <th className="px-2 py-2">When</th>
                                         <th className="px-2 py-2">Decision</th>
                                         <th className="px-2 py-2">Level</th>
@@ -307,30 +307,30 @@ function EventExplorer({ selectedId, onSelected }) {
                         </div>
 
                         <div>
-                            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Triggered rules</p>
+                            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Triggered rules</p>
                             <ul className="space-y-1.5">
                                 {detail.event.rulesTriggered.map((rule) => (
                                     <li key={rule.rule} className="rounded-lg border border-slate-800 px-3 py-2">
                                         <div className="flex items-center justify-between gap-2">
                                             <span className="font-mono text-xs text-amber-300">{rule.rule}</span>
-                                            <span className="text-xs text-slate-500">+{rule.weight}</span>
+                                            <span className="text-xs text-slate-400">+{rule.weight}</span>
                                         </div>
                                         <p className="mt-0.5 text-xs text-slate-300">{rule.explanation}</p>
                                     </li>
                                 ))}
-                                {detail.event.rulesTriggered.length === 0 && <li className="text-xs text-slate-500">No rules triggered.</li>}
+                                {detail.event.rulesTriggered.length === 0 && <li className="text-xs text-slate-400">No rules triggered.</li>}
                             </ul>
                         </div>
 
                         {detail.freezes.length > 0 && (
                             <div>
-                                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Related freezes</p>
+                                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Related freezes</p>
                                 <ul className="space-y-1.5">
                                     {detail.freezes.map((freeze) => (
                                         <li key={freeze.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-800 px-3 py-2 text-xs text-slate-300">
                                             <Badge value={freeze.status} />
                                             <span>{freeze.scope}</span>
-                                            <span className="text-slate-500">{freeze.reason}</span>
+                                            <span className="text-slate-400">{freeze.reason}</span>
                                         </li>
                                     ))}
                                 </ul>
@@ -416,7 +416,7 @@ function Incidents({ incidentId, onSelect }) {
                                         <span className="truncate text-sm text-slate-200">{incident.title}</span>
                                         <Badge value={incident.severity} />
                                     </div>
-                                    <div className="mt-0.5 flex items-center gap-2 text-[11px] text-slate-500">
+                                    <div className="mt-0.5 flex items-center gap-2 text-xs text-slate-400">
                                         <Badge value={incident.status} />
                                         <span>{incident.riskEventCount} event(s)</span>
                                     </div>
@@ -438,7 +438,7 @@ function Incidents({ incidentId, onSelect }) {
                         <div className="flex flex-wrap items-center gap-2">
                             <Badge value={timeline.incident.severity} />
                             <Badge value={timeline.incident.status} />
-                            <span className="text-xs text-slate-500">{timeline.blockedActions} blocked action(s)</span>
+                            <span className="text-xs text-slate-400">{timeline.blockedActions} blocked action(s)</span>
                         </div>
                         {timeline.incident.description && (
                             <p className="whitespace-pre-wrap rounded-xl border border-slate-800 bg-slate-950/40 p-3 text-xs text-slate-400">
@@ -456,7 +456,7 @@ function Incidents({ incidentId, onSelect }) {
                                     <div className="rounded-xl border border-slate-800 px-3 py-2">
                                         <div className="flex flex-wrap items-center justify-between gap-2">
                                             <span className="text-sm text-slate-200">{step.title}</span>
-                                            <span className="text-[11px] text-slate-500">{formatDateTime(step.at)}</span>
+                                            <span className="text-xs text-slate-400">{formatDateTime(step.at)}</span>
                                         </div>
                                         <p className="mt-0.5 text-xs text-slate-400">{step.type}</p>
                                         {step.detail && <p className="mt-1 text-xs text-slate-400">{step.detail}</p>}
@@ -531,9 +531,9 @@ function Freezes() {
                                     <span className="text-sm text-slate-200">
                                         {freeze.retailer?.fullName || `User #${freeze.userId}`}
                                     </span>
-                                    <span className="text-xs text-slate-500">{freeze.scope}</span>
+                                    <span className="text-xs text-slate-400">{freeze.scope}</span>
                                 </div>
-                                <span className="text-[11px] text-slate-500">{formatDateTime(freeze.frozenAt)}</span>
+                                <span className="text-xs text-slate-400">{formatDateTime(freeze.frozenAt)}</span>
                             </div>
                             <p className="mt-1 text-xs text-slate-400">{freeze.reason}</p>
                             {freeze.status === 'ACTIVE' && (
@@ -604,7 +604,7 @@ function Integrity() {
                             {audit.tip && (
                                 <div className="flex items-center justify-between gap-2">
                                     <span className="text-slate-400">Tip hash</span>
-                                    <span className="truncate font-mono text-[11px] text-slate-400">{audit.tip.hash?.slice(0, 24)}…</span>
+                                    <span className="truncate font-mono text-xs text-slate-400">{audit.tip.hash?.slice(0, 24)}…</span>
                                 </div>
                             )}
                             {!audit.valid && audit.firstInvalidSequence != null && (
@@ -612,7 +612,7 @@ function Integrity() {
                                     First invalid record: sequence {audit.firstInvalidSequence} ({audit.reason}).
                                 </p>
                             )}
-                            <p className="rounded-lg border border-slate-800 bg-slate-950/40 p-3 text-[11px] leading-relaxed text-slate-500">
+                            <p className="rounded-lg border border-slate-800 bg-slate-950/40 p-3 text-xs leading-relaxed text-slate-400">
                                 {audit.limitation}
                             </p>
                         </div>
@@ -659,11 +659,11 @@ export default function SecurityCenter() {
             <header className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <h1 className="text-lg font-semibold text-slate-100">Security Center</h1>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-slate-400">
                         Fraud detection, holds, tenant isolation, ledger integrity and incident response.
                     </p>
                 </div>
-                <span className="rounded-full bg-amber-500/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-300 ring-1 ring-inset ring-amber-500/30">
+                <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-300 ring-1 ring-inset ring-amber-500/30">
                     Sandbox · simulated data
                 </span>
             </header>

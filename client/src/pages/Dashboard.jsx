@@ -75,11 +75,11 @@ export default function Dashboard() {
             <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
                     <h1 className="text-lg font-semibold text-slate-100">Operations Dashboard</h1>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-slate-400">
                         Today · since {data?.since ? new Date(data.since).toLocaleString('en-IN') : '—'} · auto-refreshes every 20s
                     </p>
                 </div>
-                <div className="flex items-center gap-2 text-xs text-slate-500">
+                <div className="flex items-center gap-2 text-xs text-slate-400">
                     <Badge value={streamStatus === 'connected' ? 'Live' : streamStatus} />
                     <span>Live subscribers: {data?.realtime?.subscribers ?? 0}</span>
                 </div>
@@ -104,15 +104,15 @@ export default function Dashboard() {
                     <p className="text-3xl font-semibold tabular-nums text-slate-100">{formatCurrency(payments.grossAmount)}</p>
                     <div className="mt-4 grid grid-cols-3 gap-3 text-xs">
                         <div className="rounded-lg bg-slate-900/60 p-3">
-                            <p className="text-slate-500">Orders</p>
+                            <p className="text-slate-400">Orders</p>
                             <p className="mt-1 text-base font-semibold text-slate-200">{formatNumber(data?.orders?.total)}</p>
                         </div>
                         <div className="rounded-lg bg-slate-900/60 p-3">
-                            <p className="text-slate-500">Cancelled</p>
+                            <p className="text-slate-400">Cancelled</p>
                             <p className="mt-1 text-base font-semibold text-slate-200">{formatNumber(payments.cancelled)}</p>
                         </div>
                         <div className="rounded-lg bg-slate-900/60 p-3">
-                            <p className="text-slate-500">Expired</p>
+                            <p className="text-slate-400">Expired</p>
                             <p className="mt-1 text-base font-semibold text-slate-200">{formatNumber(payments.expired)}</p>
                         </div>
                     </div>
@@ -125,7 +125,7 @@ export default function Dashboard() {
                         <StatCard label="Failed" value={formatNumber(webhooks.failed)} tone={webhooks.failed ? 'bad' : 'default'} />
                         <StatCard label="Avg delay" value={formatSeconds(webhooks.avgDelaySeconds)} tone="info" />
                     </div>
-                    <p className="mt-3 text-xs text-slate-500">
+                    <p className="mt-3 text-xs text-slate-400">
                         Duplicates suppressed: {formatNumber(webhooks.duplicatesSuppressed)}
                     </p>
                 </Card>
@@ -219,14 +219,14 @@ export default function Dashboard() {
                     </div>
 
                     {data.reconciliation.latestRun ? (
-                        <p className="mt-3 text-[11px] text-slate-500">
+                        <p className="mt-3 text-xs text-slate-400">
                             Latest run: {data.reconciliation.latestRun.matchedCount} matched,{' '}
                             {data.reconciliation.latestRun.exceptionCount} exception(s), completed{' '}
                             {formatDateTime(data.reconciliation.latestRun.completedAt)}
                             {data.reconciliation.latestRun.source === 'SIMULATED' && ' — from a SIMULATED provider report'}
                         </p>
                     ) : (
-                        <p className="mt-3 text-[11px] text-slate-500">
+                        <p className="mt-3 text-xs text-slate-400">
                             No reconciliation run yet. Open the Reconciliation page to compare the internal ledger with a provider report.
                         </p>
                     )}

@@ -172,7 +172,7 @@ export default function LivenessCheck({ onSave, savedAt }) {
             <div className="flex items-center justify-between gap-2">
                 <div>
                     <p className="text-xs font-semibold text-slate-300">Liveness check (camera)</p>
-                    <p className="text-[11px] text-slate-500">
+                    <p className="text-xs text-slate-400">
                         Starts the webcam, captures 6 frames over ~3s and scores brightness + motion. Demo/testing only — runs in your browser.
                     </p>
                 </div>
@@ -188,7 +188,7 @@ export default function LivenessCheck({ onSave, savedAt }) {
                     className={`mx-auto h-48 w-full max-w-sm object-cover ${cameraOn ? '' : 'hidden'}`}
                 />
                 {!cameraOn && (
-                    <div className="flex h-48 flex-col items-center justify-center gap-2 text-center text-[11px] text-slate-500">
+                    <div className="flex h-48 flex-col items-center justify-center gap-2 text-center text-xs text-slate-400">
                         <span className="text-2xl">📷</span>
                         <p>Camera is off</p>
                         {cameraError && <p className="max-w-xs text-rose-300">{cameraError}</p>}
@@ -210,14 +210,14 @@ export default function LivenessCheck({ onSave, savedAt }) {
                 )}
 
                 {progress && (
-                    <div className="absolute inset-x-0 bottom-0 bg-black/70 px-3 py-1 text-center text-[11px] text-sky-300">
+                    <div className="absolute inset-x-0 bottom-0 bg-black/70 px-3 py-1 text-center text-xs text-sky-300">
                         {progress}
                     </div>
                 )}
             </div>
 
             {result && (
-                <div className={`space-y-1 rounded-lg border p-3 text-[11px] ${result.passed ? 'border-emerald-900/60 bg-emerald-950/30 text-emerald-200' : 'border-amber-900/60 bg-amber-950/30 text-amber-200'}`}>
+                <div className={`space-y-1 rounded-lg border p-3 text-xs ${result.passed ? 'border-emerald-900/60 bg-emerald-950/30 text-emerald-200' : 'border-amber-900/60 bg-amber-950/30 text-amber-200'}`}>
                     <p className="font-semibold">
                         {result.passed ? 'Liveness PASSED' : 'Liveness needs review'} — score {result.score}/100
                     </p>
@@ -244,7 +244,7 @@ export default function LivenessCheck({ onSave, savedAt }) {
             </div>
 
             {saved && (
-                <p className="text-[11px] text-emerald-300">Liveness evidence saved — it now appears under Documents in the journey.</p>
+                <p className="text-xs text-emerald-300">Liveness evidence saved — it now appears under Documents in the journey.</p>
             )}
         </div>
     );

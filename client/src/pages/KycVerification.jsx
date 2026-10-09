@@ -234,7 +234,7 @@ export default function KycVerification() {
             <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
                     <h1 className="text-lg font-semibold text-slate-100">KYC Verification</h1>
-                    <p className="text-xs text-slate-500">Inspect a customer, walk their KYC journey, run a camera liveness test and record the decision</p>
+                    <p className="text-xs text-slate-400">Inspect a customer, walk their KYC journey, run a camera liveness test and record the decision</p>
                 </div>
                 {journey && (
                     <div className="flex items-center gap-2">
@@ -287,7 +287,7 @@ export default function KycVerification() {
                 <Card
                     title={`${profile?.fullName || 'Customer'} · verification workspace`}
                     subtitle={`${profile?.email || ''} · ${profile?.mobile || ''}`}
-                    actions={<span className="font-mono text-[10px] text-slate-500">{profile?.uuid}</span>}
+                    actions={<span className="font-mono text-[11px] text-slate-400">{profile?.uuid}</span>}
                 >
                     <div className="space-y-4">
                         {/* Tabs */}
@@ -311,7 +311,7 @@ export default function KycVerification() {
                                         Completion {journey.completionPercent}% ({journey.completed}/{journey.total})
                                     </p>
                                     {profile?.kycRejectionReason && (
-                                        <span className="text-[11px] text-rose-300">{profile.kycRejectionReason}</span>
+                                        <span className="text-xs text-rose-300">{profile.kycRejectionReason}</span>
                                     )}
                                 </div>
                                 <DetailGrid entries={profileEntries} />
@@ -328,10 +328,10 @@ export default function KycVerification() {
                                 </div>
                                 <ul className="space-y-1.5">
                                     {journey.steps.map((step) => (
-                                        <li key={step.key} className="flex items-start justify-between gap-3 text-[11px]">
+                                        <li key={step.key} className="flex items-start justify-between gap-3 text-xs">
                                             <div>
                                                 <p className="text-slate-300">{step.label}</p>
-                                                <p className="text-slate-500">{step.detail}</p>
+                                                <p className="text-slate-400">{step.detail}</p>
                                             </div>
                                             <Badge value={step.status} />
                                         </li>
@@ -339,7 +339,7 @@ export default function KycVerification() {
                                 </ul>
 
                                 {journey.blockers?.length > 0 && (
-                                    <div className="rounded border border-rose-900/60 bg-rose-950/20 p-2 text-[11px] text-rose-200">
+                                    <div className="rounded border border-rose-900/60 bg-rose-950/20 p-2 text-xs text-rose-200">
                                         <p className="font-semibold">Blockers</p>
                                         <ul className="list-disc pl-4">
                                             {journey.blockers.map((blocker, index) => <li key={index}>{blocker}</li>)}
@@ -348,7 +348,7 @@ export default function KycVerification() {
                                 )}
 
                                 {journey.missing?.length > 0 && (
-                                    <div className="rounded border border-amber-900/60 bg-amber-950/20 p-2 text-[11px] text-amber-200">
+                                    <div className="rounded border border-amber-900/60 bg-amber-950/20 p-2 text-xs text-amber-200">
                                         <p className="font-semibold">Missing</p>
                                         <ul className="list-disc pl-4">
                                             {journey.missing.map((item, index) => <li key={index}>{item}</li>)}
@@ -358,9 +358,9 @@ export default function KycVerification() {
 
                                 {documents.length > 0 && (
                                     <div className="space-y-1.5">
-                                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Documents</p>
+                                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Documents</p>
                                         {documents.map((doc) => (
-                                            <div key={doc.uuid || doc.type} className="flex items-center justify-between gap-2 rounded bg-slate-900/50 px-2 py-1.5 text-[11px]">
+                                            <div key={doc.uuid || doc.type} className="flex items-center justify-between gap-2 rounded bg-slate-900/50 px-2 py-1.5 text-xs">
                                                 <span className="text-slate-300">
                                                     {doc.type} <Badge value={doc.status} />
                                                     {doc.rejectionReason && <span className="ml-1 text-rose-300">({doc.rejectionReason})</span>}
@@ -401,7 +401,7 @@ export default function KycVerification() {
                             {passwordMissing && (
                                 <div className="space-y-2 rounded-lg border border-amber-900/60 bg-amber-950/30 p-3">
                                     <p className="text-xs font-semibold text-amber-200">KYC private password not set yet</p>
-                                    <p className="text-[11px] text-amber-300/80">
+                                    <p className="text-xs text-amber-300/80">
                                         The backend requires a private password for every KYC change (documents and decisions). Set it once — it will be reused for this action.
                                     </p>
                                     <div className="flex flex-col gap-2 sm:flex-row">
