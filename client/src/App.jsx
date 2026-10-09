@@ -11,6 +11,8 @@ import Customers from './pages/Customers.jsx';
 import Kyc from './pages/Kyc.jsx';
 import KycVerification from './pages/KycVerification.jsx';
 import Simulator from './pages/Simulator.jsx';
+import SecurityCenter from './pages/SecurityCenter.jsx';
+import FraudLab from './pages/FraudLab.jsx';
 import { EmptyState } from './components/ui.jsx';
 import { ToastProvider } from './lib/toast.jsx';
 
@@ -48,6 +50,8 @@ export default function App() {
                         <Route path="/customers" element={<Customers />} />
                         <Route path="/kyc" element={<Kyc />} />
                         <Route path="/kyc/verification" element={<KycVerification />} />
+                        <Route path="/security" element={<SecurityCenter />} />
+                        <Route path="/security/fraud-lab" element={<FraudLab />} />
                         <Route path="*" element={<NotFound />} />
                     </Route>
                 </Routes>

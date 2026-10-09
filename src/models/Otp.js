@@ -18,9 +18,35 @@ const Otp = sequelize.define('Otp', {
         type: DataTypes.STRING,
         allowNull: false
     },
+    // Deprecated plaintext column. Never populated any more — only `otpHash` is
+    // written. Kept nullable for compatibility with existing rows.
     otp: {
         type: DataTypes.STRING(6),
-        allowNull: false
+        allowNull: true
+    },
+    // bcrypt hash of the verification code. Plaintext codes are never stored.
+    otpHash: {
+        type: DataTypes.STRING(255),
+        allowNull: true
+    },
+    purpose: {
+        type: DataTypes.STRING(40),
+        allowNull: false,
+        defaultValue: 'PASSWORD_RESET'
+    },
+    attempts: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0
+    },
+    maxAttempts: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 5
+    },
+    consumedAt: {
+        type: DataTypes.DATE,
+        allowNull: true
     },
     expires_at: {
         type: DataTypes.DATE,
@@ -30,7 +56,8 @@ const Otp = sequelize.define('Otp', {
     tableName: 'otps',
     timestamps: true,
     indexes: [
-        { fields: ['email'] }
+        { fields: ['email'] },
+        { fields: ['email', 'purpose'] }
     ]
 });
 

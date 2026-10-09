@@ -65,6 +65,46 @@ const AuditLog = sequelize.define('AuditLog', {
     metadata: {
         type: DataTypes.JSON,
         allowNull: true
+    },
+
+    // ---- Security-relevant outcome metadata (Feature Six) ----
+    outcome: {
+        type: DataTypes.STRING(30),
+        allowNull: true
+    },
+    reason: {
+        type: DataTypes.STRING(255),
+        allowNull: true
+    },
+    source: {
+        type: DataTypes.STRING(40),
+        allowNull: true
+    },
+    correlationId: {
+        type: DataTypes.STRING(80),
+        allowNull: true
+    },
+    requestId: {
+        type: DataTypes.STRING(80),
+        allowNull: true
+    },
+
+    // ---- Tamper-evident hash chain (Feature Six) ----
+    // Records written before the chain existed have a NULL sequence; the
+    // verifier simply starts at the first chained row. `unique` prevents two
+    // writers from claiming the same position in the log.
+    sequence: {
+        type: DataTypes.BIGINT,
+        allowNull: true,
+        unique: true
+    },
+    prevHash: {
+        type: DataTypes.STRING(64),
+        allowNull: true
+    },
+    hash: {
+        type: DataTypes.STRING(64),
+        allowNull: true
     }
 }, {
     tableName: 'audit_logs',
@@ -73,7 +113,10 @@ const AuditLog = sequelize.define('AuditLog', {
         { fields: ['actorId', 'createdAt'] },
         { fields: ['action'] },
         { fields: ['entityType', 'entityId'] },
-        { fields: ['createdAt'] }
+        { fields: ['createdAt'] },
+        { fields: ['sequence'], unique: true },
+        { fields: ['outcome'] },
+        { fields: ['correlationId'] }
     ]
 });
 

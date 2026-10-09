@@ -29,6 +29,7 @@ import pineLabsRoute from './routes/Payment/PineLabs/pineLabs.route.js';
 import securePayOpsRoute from './routes/SecurePay/ops.route.js';
 import securePayReconciliationRoute from './routes/SecurePay/reconciliation.route.js';
 import securePaySettlementRoute from './routes/SecurePay/settlement.route.js';
+import securePaySecurityRoute from './routes/SecurePay/security.route.js';
 import pineLabsSandboxRouter, { sandboxEnabled } from './sandbox/pineLabsSandbox.js';
 import { globalLimiter, digilockerLimiter } from './middlewares/rateLimiter.js';
 import './models/Otp.js';
@@ -50,6 +51,12 @@ import './models/PaymentEvent.js';
 import './models/AuditLog.js';
 import './models/ReconciliationRun.js';
 import './models/ReconciliationException.js';
+// SecurePay Lab security models (risk events, freezes, incidents, ledger)
+import './models/RiskEvent.js';
+import './models/AccountFreeze.js';
+import './models/SecurityIncident.js';
+import './models/LedgerAccount.js';
+import './models/LedgerEntry.js';
 import { requestLogger } from './middlewares/requestLogger.js';
 
 
@@ -113,6 +120,7 @@ app.use('/api/payment/nxpay', pineLabsRoute);
 app.use('/api/securepay', securePayOpsRoute);
 app.use('/api/securepay/reconciliation', securePayReconciliationRoute);
 app.use('/api/securepay/settlements', securePaySettlementRoute);
+app.use('/api/securepay/security', securePaySecurityRoute);
 
 // Pine Labs Plural-compatible SANDBOX provider.
 // Point PINELABS_BASE_URL at it to exercise the entire payment pipeline with a

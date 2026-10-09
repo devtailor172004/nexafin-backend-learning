@@ -1,7 +1,6 @@
 import jwt from 'jsonwebtoken';
 import sequelize from "../../config/db.js";
 import User from "../../models/User.js";
-import Otp from "../../models/Otp.js";
 import BlacklistedToken from "../../models/BlacklistedToken.js";
 import { sendRegistrationSMS } from "../../utils/smsService.js";
 import { sendForgotPasswordEmail } from "../../utils/emailService.js";
@@ -11,6 +10,17 @@ import { ApiResponse } from "../../utils/ApiResponse.js";
 import { HTTP_STATUS } from "../../utils/httpStatus.js";
 import { getAuthenticatedUser } from "../../utils/userHelper.js";
 import logger from "../../utils/logger.js";
+import { writeAuditLog } from "../../securepay/auditLog.js";
+import {
+    AUTH_MESSAGES,
+    validatePassword,
+    createOtpChallenge,
+    consumeOtpChallenge,
+    registerFailedLogin,
+    clearLoginFailures,
+    isLocked,
+    revokeExistingSessions
+} from "../../securepay/authHardening.js";
 
 /**
  * @desc    Login user and obtain JWT token
@@ -18,23 +28,75 @@ import logger from "../../utils/logger.js";
  * @access  Public
  */
 export const loginUser = asyncHandler(async (req, res) => {
-    const { email, password } = req.body;
+    const { email, password } = req.body || {};
+
+    if (!email || !password) {
+        throw new ApiError(HTTP_STATUS.BAD_REQUEST, "email and password are required.");
+    }
 
     const user = await User.findOne({ where: { email } });
-    if (!user) {
-        throw new ApiError(HTTP_STATUS.NOT_FOUND, "User not found!");
-    }
 
-    if (user.is_blocked) {
-        throw new ApiError(HTTP_STATUS.FORBIDDEN, "Access Denied. Your account has been blocked by the admin.");
-    }
+    /**
+     * Single generic failure path. Unknown account, locked account and wrong
+     * password are indistinguishable to the caller — only the audit trail
+     * records which of them actually happened.
+     */
+    const failGeneric = async (reason) => {
+        await writeAuditLog({
+            actorId: user?.id || null,
+            action: 'AUTH_LOGIN_FAILED',
+            entityType: 'user',
+            entityId: user?.uuid || null,
+            description: 'Login rejected.',
+            outcome: 'DENIED',
+            reason,
+            source: 'AUTH',
+            ipAddress: req.ip,
+            requestId: req.id || null
+        });
+        throw new ApiError(HTTP_STATUS.UNAUTHORIZED, AUTH_MESSAGES.INVALID_CREDENTIALS);
+    };
+
+    if (!user) return failGeneric('unknown account');
+    if (isLocked(user)) return failGeneric('account temporarily locked');
 
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-        throw new ApiError(HTTP_STATUS.NOT_FOUND, "Invalid credentials!");
+        await registerFailedLogin(user);
+        return failGeneric('incorrect password');
     }
 
+    // Credentials are correct, so revealing the block does not leak existence.
+    if (user.is_blocked) {
+        await writeAuditLog({
+            actorId: user.id,
+            action: 'AUTH_LOGIN_DENIED',
+            entityType: 'user',
+            entityId: user.uuid,
+            description: 'Blocked account attempted to sign in.',
+            outcome: 'DENIED',
+            reason: 'account blocked',
+            source: 'AUTH',
+            ipAddress: req.ip
+        });
+        throw new ApiError(HTTP_STATUS.FORBIDDEN, "Access Denied. Your account has been blocked by the admin.");
+    }
+
+    await clearLoginFailures(user);
+
     const token = user.generateToken();
+
+    await writeAuditLog({
+        actorId: user.id,
+        actorRole: user.role,
+        action: 'AUTH_LOGIN_SUCCESS',
+        entityType: 'user',
+        entityId: user.uuid,
+        description: 'Login successful.',
+        outcome: 'SUCCESS',
+        source: 'AUTH',
+        ipAddress: req.ip
+    });
 
     return res.status(HTTP_STATUS.OK).json(
         new ApiResponse(
@@ -92,51 +154,53 @@ export const forgotPassword = asyncHandler(async (req, res) => {
             throw new ApiError(HTTP_STATUS.BAD_REQUEST, "newPassword and confirmPassword are required.");
         }
 
-        if (newPassword.length < 6 || newPassword.length > 10) {
-            throw new ApiError(HTTP_STATUS.BAD_REQUEST, "Password must be between 6 and 10 characters long.");
-        }
-
         if (newPassword !== confirmPassword) {
             throw new ApiError(HTTP_STATUS.BAD_REQUEST, "newPassword and confirmPassword do not match.");
         }
 
-        // Execute password reset and OTP destruction inside a managed transaction
+        const policy = validatePassword(newPassword);
+        if (!policy.ok) {
+            throw new ApiError(HTTP_STATUS.BAD_REQUEST, policy.errors.join(' '));
+        }
+
+        // Verify the single-use, expiring, attempt-limited challenge. Only a
+        // hash of the code is stored, and it is consumed exactly once.
+        await consumeOtpChallenge({
+            email: formattedEmail,
+            code: String(otp).trim(),
+            purpose: 'PASSWORD_RESET'
+        });
+
+        // Apply the new password and move `password_changed_at` in ONE
+        // transaction, so a session cannot slip through the gap between them.
         await sequelize.transaction(async (t) => {
-            const otpRecord = await Otp.findOne({ where: { email: formattedEmail }, transaction: t });
-
-            if (!otpRecord || otpRecord.otp !== String(otp).trim()) {
-                throw new ApiError(HTTP_STATUS.BAD_REQUEST, "Invalid OTP.");
-            }
-
-            // Check expiry
-            if (new Date() > new Date(otpRecord.expires_at)) {
-                await otpRecord.destroy({ transaction: t });
-                throw new ApiError(HTTP_STATUS.BAD_REQUEST, "OTP has expired.");
-            }
-
-            // Reset password
-            user.password = newPassword; // Hashed automatically by the beforeUpdate model hook
+            user.password = newPassword; // Hashed by the beforeUpdate model hook
             await user.save({ transaction: t });
+            await revokeExistingSessions(user, { transaction: t });
+        });
 
-            // Delete OTP record from DB
-            await otpRecord.destroy({ transaction: t });
+        await writeAuditLog({
+            actorId: user.id,
+            action: 'AUTH_PASSWORD_RESET',
+            entityType: 'user',
+            entityId: user.uuid,
+            description: 'Password reset completed; all prior sessions revoked.',
+            outcome: 'SUCCESS',
+            source: 'AUTH',
+            ipAddress: req.ip,
+            critical: true
         });
 
         return res.status(HTTP_STATUS.OK).json(
-            new ApiResponse(HTTP_STATUS.OK, null, "Password reset successful! You can now login with your new password.")
+            new ApiResponse(HTTP_STATUS.OK, null, AUTH_MESSAGES.PASSWORD_CHANGED)
         );
     }
 
-    // Otherwise: Generate and send OTP atomically
-    const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // Valid for 5 minutes
-
-    await sequelize.transaction(async (t) => {
-        // Delete any existing OTP for this email (upsert logic)
-        await Otp.destroy({ where: { email: formattedEmail }, transaction: t });
-
-        // Save new OTP to DB
-        await Otp.create({ email: formattedEmail, otp: generatedOtp, expires_at: expiresAt }, { transaction: t });
+    // Otherwise: issue a new single-use challenge. The plaintext code is only
+    // ever returned to the caller for delivery — it is never persisted or logged.
+    const { code: generatedOtp } = await createOtpChallenge({
+        email: formattedEmail,
+        purpose: 'PASSWORD_RESET'
     });
 
     let emailSent = false;

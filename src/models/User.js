@@ -449,6 +449,22 @@ const User = sequelize.define('User', {
         defaultValue: false,
         allowNull: false
     },
+    // ---- Authentication hardening (Feature Seven) ----
+    failed_login_attempts: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0
+    },
+    locked_until: {
+        type: DataTypes.DATE,
+        allowNull: true
+    },
+    // Any JWT issued before this instant is rejected (session revocation on
+    // password reset). Set by revokeExistingSessions().
+    password_changed_at: {
+        type: DataTypes.DATE,
+        allowNull: true
+    },
     business_category: {
         type: DataTypes.VIRTUAL,
         get() {

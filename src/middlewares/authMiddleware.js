@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import BlacklistedToken from '../models/BlacklistedToken.js';
+import { shouldRevokeSession } from '../securepay/authHardening.js';
 
 // Optional token parser (attaches req.user if token present, doesn't block if missing or invalid)
 export const parseToken = async (req, res, next) => {
@@ -44,9 +45,15 @@ export const verifyToken = async (req, res, next) => {
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
             // Check if user is blocked in DB
-            const user = await User.findByPk(decoded.id, { attributes: ['id', 'is_blocked'] });
+            const user = await User.findByPk(decoded.id, { attributes: ['id', 'is_blocked', 'password_changed_at'] });
             if (!user) {
-                return res.status(401).json({ success: false, message: "User not found." });
+                return res.status(401).json({ success: false, message: "Invalid Token" });
+            }
+
+            // A password reset moves `password_changed_at` forward and thereby
+            // invalidates every token issued before it.
+            if (shouldRevokeSession({ tokenIssuedAtSeconds: decoded.iat, passwordChangedAt: user.password_changed_at })) {
+                return res.status(401).json({ success: false, message: "Session expired. Please sign in again." });
             }
 
             if (user.is_blocked) {

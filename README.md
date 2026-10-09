@@ -17,6 +17,7 @@ A full-stack payment operations platform with Express.js backend, React + Vite f
 - [Payment Simulator](#payment-simulator)
 - [Testing](#testing)
 - [API Endpoints Overview](#api-endpoints-overview)
+- [Security Center & Fraud Lab](#security-center--fraud-lab)
 - [Git Workflow - Commit to GitHub](#git-workflow---commit-to-github)
 - [Troubleshooting](#troubleshooting)
 - [License](#license)
@@ -362,6 +363,151 @@ git checkout -b feature/your-feature-name
 git push -u origin feature/your-feature-name
 # then open PR on GitHub
 ```
+
+## Security Center & Fraud Lab
+
+SecurePay Lab includes a defensive security layer built on top of the existing payment, idempotency, webhook and audit modules. It is an **educational, sandbox-only** implementation: every financial operation it exercises is simulated against synthetic data, and the Fraud Lab refuses to run when `NODE_ENV=production`.
+
+### Reused, not duplicated
+
+The security features extend what already existed rather than replacing it:
+
+| Concern | Module |
+| --- | --- |
+| Payment state machine | `src/securepay/stateMachine.js` |
+| Append-only payment timeline + SSE | `src/securepay/eventEngine.js`, `eventBus.js` |
+| Webhook deduplication | `src/securepay/webhookLedger.js`, `models/ProviderWebhookEvent.js` |
+| Idempotency | `src/utils/idempotency.js`, `models/IdempotencyKey.js` |
+| Audit logging | `src/securepay/auditLog.js`, `models/AuditLog.js` |
+| Reconciliation / settlement | `src/securepay/reconciliation.js`, `settlement.js` |
+
+### What was added
+
+| Capability | Module |
+| --- | --- |
+| Deterministic, explainable risk engine (11 rules, configurable thresholds) | `src/securepay/fraudEngine.js`, `src/config/fraudConfig.js` |
+| Fraud orchestration: scoring, holds, freezes, incidents, admin review | `src/securepay/fraudService.js` |
+| Double-entry ledger (integer minor units, immutable entries, row-locked posting, compensating reversals, invariant checks) | `src/securepay/ledger.js`, `models/LedgerAccount.js`, `models/LedgerEntry.js` |
+| Tamper-evident hash-chained audit trail + fail-closed critical writes | `src/securepay/auditChain.js`, `src/securepay/auditLog.js` |
+| Tenant isolation / BOLA guard | `src/securepay/tenant.js` |
+| Auth hardening (generic login errors, hashed single-use OTPs, bounded lockout, session revocation on password reset) | `src/securepay/authHardening.js`, `controllers/Auth/auth.controller.js`, `middlewares/authMiddleware.js` |
+| Namespaced security events on the existing SSE bus | `src/securepay/securityEvents.js` |
+| Fraud Lab scenarios A–I | `src/securepay/fraudLab.js` |
+| Security Center API (admin-only) | `controllers/SecurePay/security.controller.js`, `routes/SecurePay/security.route.js` |
+| Security Center + Fraud Lab UI | `client/src/pages/SecurityCenter.jsx`, `client/src/pages/FraudLab.jsx` |
+
+New models: `RiskEvent`, `AccountFreeze`, `SecurityIncident`, `LedgerAccount`, `LedgerEntry`. The `AuditLog` model gained `outcome`, `reason`, `source`, `correlationId`, `requestId` and the chain columns `sequence` / `prevHash` / `hash`.
+
+### Risk decisions
+
+Every attempt is scored 0–100 and receives one of `LOW`, `MEDIUM`, `HIGH`, `CRITICAL` plus a decision:
+
+- `ALLOW` — proceed.
+- `STEP_UP` — proceed only after additional verification.
+- `HOLD` — do not move money; an administrator must review.
+- `BLOCK` — refuse outright.
+
+By default a `HOLD` or `BLOCK` also freezes the account's money-moving capability until an administrator releases it with a documented reason. Change this with `FRAUD_FREEZE_ON` (e.g. `FRAUD_FREEZE_ON=BLOCK`).
+
+### Security environment variables
+
+All optional; defaults are safe for local sandbox use.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `FRAUD_LAB_ENABLED` | enabled | Set `false` to disable scenario execution |
+| `FRAUD_FREEZE_ON` | `HOLD,BLOCK` | Decisions that freeze the account |
+| `FRAUD_VELOCITY_COUNT` | `5` | Attempts in the velocity window that trip the velocity rule |
+| `FRAUD_VELOCITY_WINDOW_MINUTES` | `10` | Velocity window |
+| `FRAUD_HIGH_AMOUNT_MINOR` | `500000` | High-value threshold in paise |
+| `FRAUD_BENEFICIARY_BURST_COUNT` | `3` | Beneficiaries added in the burst window |
+| `FRAUD_STEP_UP_SCORE` / `FRAUD_HOLD_SCORE` / `FRAUD_BLOCK_SCORE` | `30` / `50` / `70` | Decision cut-offs |
+| `AUTH_MAX_FAILED_ATTEMPTS` | `5` | Failed logins before a temporary lockout |
+| `AUTH_LOCKOUT_MINUTES` | `15` | Lockout duration |
+
+> The Fraud Lab refuses to run in production regardless of these values.
+
+### Running the security demo locally
+
+```bash
+# 1. Backend
+cd /path/to/nexafin-backend-learning
+npm install
+cp .env.example .env          # set DATABASE_URL, JWT_SECRET, PINE_LABS_CLIENT_SECRET
+npm run db:setup              # create the schema (add --seed for the admin user)
+npm run dev                   # http://localhost:3000
+
+# 2. Frontend (second terminal)
+cd client
+npm install
+npm run dev                   # http://localhost:5173
+```
+
+Log in as the seeded admin, then open **Security → Security Center** and **Security → Fraud Lab** in the sidebar.
+
+### Security Center screens
+
+| Screen | Route | Backend routes |
+| --- | --- | --- |
+| Security Overview | `/security` | `GET /api/securepay/security/overview` |
+| Security Event Explorer | `/security` (Events tab) | `GET /api/securepay/security/events`, `GET /api/securepay/security/events/:uuid`, `POST /api/securepay/security/events/:uuid/review` |
+| Incident Details | `/security` (Incidents tab) | `GET /api/securepay/security/incidents`, `GET /api/securepay/security/incidents/:uuid` |
+| Account Freeze Controls | `/security` (Freezes tab) | `GET /api/securepay/security/freezes`, `POST /api/securepay/security/freezes`, `POST /api/securepay/security/freezes/:userId/release` |
+| Audit & Ledger Integrity | `/security` (Integrity tab) | `GET /api/securepay/security/audit/integrity`, `GET /api/securepay/security/ledger/integrity` |
+| Fraud Lab | `/security/fraud-lab` | `GET /api/securepay/security/scenarios`, `POST /api/securepay/security/scenarios/:id/run` |
+
+All Security Center endpoints are admin-only and enforced server-side; hiding a control in React is never treated as authorization.
+
+### Fraud Lab scenarios
+
+Open **Security → Fraud Lab**, pick a scenario and press **Run scenario**. Every scenario is executed against synthetic sandbox retailers (`Sandbox Retailer A` / `Sandbox Retailer B`) and reports the steps, the expected result, the actual result, the rules triggered and whether it passed. A scenario only counts as passed when the backend verified the underlying security/business invariants.
+
+| ID | Scenario | What it proves |
+| --- | --- | --- |
+| A | Normal activity | Healthy behaviour is permitted; no unnecessary freeze; ledger untouched |
+| B | Transaction velocity anomaly | Velocity/amount rules fire, risk rises, the account is frozen and further payouts are refused |
+| C | Suspicious beneficiary | Unverified/new beneficiary is checked and the payout is not silently allowed |
+| D | Repeated payment request | One business effect; valid replay returns the original result; changed payload → HTTP 409 |
+| E | Unauthorized resource access | Cross-tenant access denied (403); ownership cannot be bypassed by changing an id |
+| F | Concurrent debit | Balance never goes negative; only affordable debits post; journals stay balanced |
+| G | Invalid webhook | Wrong signature and tampered body are rejected; no state change; no credit |
+| H | Duplicate webhook | Duplicate is detected and ignored; effect applied exactly once |
+| I | Incident response | Holds applied, incident created, administrator review recorded, ledger unchanged for blocked ops |
+
+Interpreting a failure: the result panel lists each step with a pass/fail marker and the reason. A failure means a security or business invariant did not hold — not merely that a request errored. Common causes are a missing `PINE_LABS_CLIENT_SECRET` (scenario G) or a database that has not been set up.
+
+### Security test commands
+
+```bash
+# Full backend suite (existing + security)
+npm test
+
+# Individual suites
+node --test tests/fraudEngine.test.js      # risk engine rules, thresholds, decisions
+node --test tests/ledger.test.js           # double-entry invariants + concurrency
+node --test tests/auditChain.test.js       # tamper detection, chain gaps, broken links
+node --test tests/tenant.test.js           # BOLA / authorization
+node --test tests/authHardening.test.js    # password policy, OTP hashing, lockout, session revocation
+node --test tests/securityRoutes.test.js   # route registration + admin guarding
+
+# Frontend production build
+cd client && npm run build
+```
+
+### Known limitations
+
+- In-memory replay buffer and single-process SSE; use Redis pub/sub behind `eventBus.js` for multiple instances.
+- The audit hash chain detects modification of stored records but cannot prevent a fully privileged attacker from recomputing the whole chain. Anchor the tip hash in an external append-only store and restrict `UPDATE`/`DELETE` on `audit_logs` for stronger tamper evidence.
+- The simulated ledger is not connected to real funds and is not a substitute for a regulated core-banking ledger.
+- Beneficiary and device signals have no dedicated module yet, so the Fraud Lab passes them explicitly; production would source them from real beneficiary/device tables.
+- Rate limiting uses the default in-memory store; a shared store is required for consistency across instances.
+- The risk engine is rule-based and explainable by design — it is not a substitute for a tuned model, and thresholds must be tuned to real traffic before any production use.
+
+### Before a real fintech production deployment
+
+Certificate-verified database TLS, a managed secrets store, multi-instance rate limiting and SSE, real second-factor authentication for step-up, external audit checkpoints, migrations instead of schema sync, a formal threat model and penetration test, PCI-DSS/regulatory review, and real provider webhook secret rotation.
+
+---
 
 ## Troubleshooting
 

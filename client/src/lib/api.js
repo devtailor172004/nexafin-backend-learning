@@ -143,6 +143,21 @@ export const endpoints = {
     createNetbankingPayment: (orderUuid, body) => api.post(`/api/payment/nxpay/order/${orderUuid}/netbanking/payments`, body, { idempotencyKey: newIdempotencyKey('sim-nb') }),
     createCardPayment: (orderUuid, body) => api.post(`/api/payment/nxpay/order/${orderUuid}/payments`, body),
 
+    // --- Security Center / Fraud Lab ---
+    securityOverview: (query = '') => api.get(`/api/securepay/security/overview${query}`),
+    securityEvents: (query = '') => api.get(`/api/securepay/security/events${query}`),
+    securityEvent: (uuid) => api.get(`/api/securepay/security/events/${uuid}`),
+    reviewSecurityEvent: (uuid, body) => api.post(`/api/securepay/security/events/${uuid}/review`, body),
+    securityFreezes: (query = '') => api.get(`/api/securepay/security/freezes${query}`),
+    createFreeze: (body) => api.post('/api/securepay/security/freezes', body),
+    releaseFreeze: (userId, body) => api.post(`/api/securepay/security/freezes/${userId}/release`, body),
+    securityIncidents: (query = '') => api.get(`/api/securepay/security/incidents${query}`),
+    securityIncident: (uuid) => api.get(`/api/securepay/security/incidents/${uuid}`),
+    auditIntegrity: (limit) => api.get(`/api/securepay/security/audit/integrity${limit ? `?limit=${limit}` : ''}`),
+    ledgerIntegrity: () => api.get('/api/securepay/security/ledger/integrity'),
+    fraudLabScenarios: () => api.get('/api/securepay/security/scenarios'),
+    runFraudLabScenario: (id, body = {}) => api.post(`/api/securepay/security/scenarios/${id}/run`, body),
+
     kycList: (status = 'Pending') => api.get(`/api/admin/kyc?status=${encodeURIComponent(status)}&limit=25`),
     kycApprove: (uuid, { status, reason, privatePassword }) => api.put(`/api/admin/kyc/${uuid}/status`, {
         status,

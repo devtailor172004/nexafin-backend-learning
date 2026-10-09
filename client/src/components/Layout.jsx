@@ -25,7 +25,14 @@ const NAV_GROUPS = [
         items: [
             { to: '/customers', label: 'Customer 360', icon: '👤' },
             { to: '/kyc', label: 'KYC Review', icon: '🛡️' },
-            { to: '/kyc/verification', label: 'KYC Verification', icon: '✅', badge: 'New' }
+            { to: '/kyc/verification', label: 'KYC Verification', icon: '✅' }
+        ]
+    },
+    {
+        label: 'Security',
+        items: [
+            { to: '/security', label: 'Security Center', icon: '🚨', badge: 'New' },
+            { to: '/security/fraud-lab', label: 'Fraud Lab', icon: '🧬' }
         ]
     }
 ];
