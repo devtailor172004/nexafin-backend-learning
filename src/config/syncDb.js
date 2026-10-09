@@ -186,8 +186,26 @@ export const syncDatabase = async () => {
     try {
         logger.info(`Starting database auto-synchronization (${dialect})...`);
 
-        // 1. Create missing tables (does not alter existing tables)
-        await sequelize.sync();
+        // 1. Create missing tables (does not alter existing tables).
+        //
+        // Sync each model on its own rather than calling sequelize.sync() once.
+        // A single failure used to abort the whole routine, so a database that
+        // predates a new column ended up half-migrated: Sequelize builds a
+        // model's indexes as part of sync(), and an index over a column the
+        // older table does not have yet throws (the audit chain's `sequence`
+        // index did exactly this). Containing the failure lets the column
+        // backfill below run, after which the failed models are re-synced.
+        const deferredSyncs = [];
+        for (const modelName of Object.keys(sequelize.models)) {
+            try {
+                await sequelize.models[modelName].sync();
+            } catch (err) {
+                deferredSyncs.push(modelName);
+                logger.warn(
+                    `[Auto-Sync] Initial sync for '${modelName}' deferred until missing columns are added: ${err.message}`
+                );
+            }
+        }
 
         const queryInterface = sequelize.getQueryInterface();
         const models = sequelize.models;
@@ -293,6 +311,18 @@ export const syncDatabase = async () => {
             // ---- 4. Grow native Postgres ENUM types with newly added values ----
             if (isPostgres) {
                 await syncPostgresEnumValues(tableName, modelAttributes);
+            }
+        }
+
+        // ---- 5. Retry the models whose first sync was deferred ----
+        // Their indexes could only be created once the missing columns above
+        // existed, so this second pass is what actually completes the schema.
+        for (const modelName of deferredSyncs) {
+            try {
+                await models[modelName].sync();
+                logger.info(`[Auto-Sync] Re-synced '${modelName}' after adding its missing columns.`);
+            } catch (err) {
+                logger.error(`[Auto-Sync] Re-sync for '${modelName}' still failed: ${err.message}`);
             }
         }
 
