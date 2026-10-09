@@ -196,11 +196,15 @@ The Operational Dashboard is the admin console for managing the entire platform.
 ### Access
 
 1. Open `http://localhost:5173`
-2. Login with demo admin:  
-   **Email:** `admin@securepay.local`  
-   **Password:** `Admin@12345`
+2. Login with the seeded admin:
+   - **Email:** `SEED_ADMIN_EMAIL` from `.env` (default `admin@securepay.local`)
+   - **Password:** `SEED_ADMIN_PASSWORD` from `.env`
 
-*(Seeded via `npm run db:seed` if used; check your DB state.)*
+> **Important:** `Admin@12345` is only the *fallback* used when `SEED_ADMIN_PASSWORD` is
+> unset. If your `.env` defines `SEED_ADMIN_PASSWORD`, that value is what
+> `npm run db:seed` hashed into the database, so it is the password you must type.
+> The password is applied at seed time — editing `.env` afterwards does not change an
+> existing account. Locked out after repeated attempts? Run `npm run auth:unlock`.
 
 ### Dashboard Overview
 

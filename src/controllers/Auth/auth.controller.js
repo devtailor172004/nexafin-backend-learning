@@ -58,12 +58,41 @@ export const loginUser = asyncHandler(async (req, res) => {
     };
 
     if (!user) return failGeneric('unknown account');
-    if (isLocked(user)) return failGeneric('account temporarily locked');
 
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-        await registerFailedLogin(user);
+        // While an account is already locked the counter is left alone, so a
+        // locked account cannot be churned back into an unlocked state.
+        if (!isLocked(user)) await registerFailedLogin(user);
         return failGeneric('incorrect password');
+    }
+
+    // The supplied password was correct, so telling this caller the account is
+    // locked reveals nothing they did not already know — it does not disclose
+    // whether the account exists to anyone guessing.
+    if (isLocked(user)) {
+        const secondsLeft = Math.max(
+            1,
+            Math.ceil((new Date(user.locked_until).getTime() - Date.now()) / 1000)
+        );
+        const minutesLeft = Math.max(1, Math.ceil(secondsLeft / 60));
+
+        await writeAuditLog({
+            actorId: user.id,
+            action: 'AUTH_LOGIN_DENIED',
+            entityType: 'user',
+            entityId: user.uuid,
+            description: 'Correct password supplied while the account was locked.',
+            outcome: 'DENIED',
+            reason: 'account temporarily locked',
+            source: 'AUTH',
+            ipAddress: req.ip
+        });
+
+        throw new ApiError(
+            HTTP_STATUS.TOO_MANY_REQUESTS || 429,
+            `Account temporarily locked after repeated failed sign-in attempts. Try again in about ${minutesLeft} minute(s), or run \`npm run auth:unlock\`.`
+        );
     }
 
     // Credentials are correct, so revealing the block does not leak existence.

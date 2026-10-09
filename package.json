@@ -8,6 +8,7 @@
     "dev": "node --env-file=.env --watch index.js",
     "db:setup": "node scripts/dbSetup.js",
     "db:seed": "node scripts/dbSetup.js --seed",
+    "auth:unlock": "node scripts/authUnlock.js",
     "test:e2e:sandbox": "node scripts/sandboxE2E.js"
   },
   "keywords": [],
