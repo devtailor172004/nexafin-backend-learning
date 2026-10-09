@@ -44,7 +44,7 @@ export const getSecurityOverview = asyncHandler(async (req, res) => {
 export const listSecurityEvents = asyncHandler(async (req, res) => {
     const { pageNum, limitNum, offset } = getPaginationParams(req.query.page, req.query.limit, 25, 200);
     const result = await listRiskEvents({
-        limit,
+        limit: limitNum,
         offset,
         decision: req.query.decision,
         riskLevel: req.query.riskLevel,

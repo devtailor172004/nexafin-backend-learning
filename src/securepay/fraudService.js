@@ -143,8 +143,9 @@ export const openIncidentIfNeeded = async ({
     }
 
     const incident = await SecurityIncident.create({
-        title,
-        description,
+        // Bounded columns: clip so a long rule explanation cannot abort the write.
+        title: String(title || 'Security incident').slice(0, 200),
+        description: description ? String(description).slice(0, 1000) : null,
         severity,
         primaryUserId: userId,
         correlationId,
@@ -389,7 +390,7 @@ export const freezeAccount = async ({
         userId,
         scope,
         status: 'ACTIVE',
-        reason: String(reason).trim(),
+        reason: String(reason).trim().slice(0, 500),
         sourceRiskEventId,
         frozenById: actorId,
         frozenAt: new Date(),
@@ -491,7 +492,7 @@ export const reviewRiskEvent = async ({ riskEventId, action, reason, actorId = n
 
     riskEvent.reviewedById = actorId;
     riskEvent.reviewDecision = normalized;
-    riskEvent.reviewReason = String(reason).trim();
+    riskEvent.reviewReason = String(reason).trim().slice(0, 500);
     riskEvent.reviewedAt = new Date();
     riskEvent.status = normalized === 'ESCALATE' ? 'UNDER_REVIEW' : 'RESOLVED';
     await riskEvent.save();

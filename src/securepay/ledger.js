@@ -116,10 +116,22 @@ export const applyEntries = ({ accounts, entries }) => {
     return balances;
 };
 
-/** Signed balance of a set of entries for one account. */
+/**
+ * Signed balance of a set of entries for one account.
+ *
+ * Fields are read explicitly rather than by spreading the entry: a Sequelize
+ * model instance keeps its attributes in `dataValues`, and `{ ...instance }`
+ * copies only internal properties (so `direction`/`amountMinor` would be
+ * undefined and every balance would recompute to 0). Reading the properties
+ * directly works for both plain objects and model instances.
+ */
 export const computeBalanceFromEntries = (entries, account) =>
     entries.reduce(
-        (total, entry) => total + signedDelta({ ...entry, normalBalance: account.normalBalance }),
+        (total, entry) => total + signedDelta({
+            direction: entry.direction,
+            amountMinor: entry.amountMinor,
+            normalBalance: account.normalBalance
+        }),
         0
     );
 

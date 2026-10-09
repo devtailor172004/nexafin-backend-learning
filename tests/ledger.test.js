@@ -138,6 +138,30 @@ test('the recomputed balance equals the sum of signed entry deltas', () => {
     assert.equal(computeBalanceFromEntries(entries, wallet), 12000);
 });
 
+test('recomputation works on real Sequelize entries, not just plain objects', async () => {
+    // Regression: a Sequelize instance keeps attributes in `dataValues`, so
+    // `{ ...instance }` silently loses them and every balance recomputed to 0 —
+    // which made the ledger integrity check report a false mismatch.
+    const { default: LedgerEntry } = await import('../src/models/LedgerEntry.js');
+
+    const entry = LedgerEntry.build({ direction: 'CREDIT', amountMinor: 10000, status: 'POSTED' });
+
+    assert.equal(entry.direction, 'CREDIT', 'attribute access works on the instance');
+    assert.equal({ ...entry }.direction, undefined, 'spreading the instance loses the attribute (the pitfall)');
+
+    assert.equal(computeBalanceFromEntries([entry], wallet), 10000);
+});
+
+test('recomputation handles a mixed set of real Sequelize entries', async () => {
+    const { default: LedgerEntry } = await import('../src/models/LedgerEntry.js');
+    const entries = [
+        LedgerEntry.build({ direction: 'CREDIT', amountMinor: 10000 }),
+        LedgerEntry.build({ direction: 'CREDIT', amountMinor: 5000 }),
+        LedgerEntry.build({ direction: 'DEBIT', amountMinor: 3000 })
+    ];
+    assert.equal(computeBalanceFromEntries(entries, wallet), 12000);
+});
+
 /* ------------------------------ concurrency ------------------------------ */
 
 /**

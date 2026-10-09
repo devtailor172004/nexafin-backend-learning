@@ -23,6 +23,38 @@ import { GENESIS_PREV_HASH, computeAuditHash, verifyAuditChain } from './auditCh
 
 const MAX_SEQUENCE_ATTEMPTS = 5;
 
+/**
+ * Column widths for the bounded string fields. Values are clipped to fit
+ * BEFORE hashing, so an unusually long explanation can never make a critical
+ * audit write fail (which, being fail-closed, would roll back the business
+ * operation). The full detail always remains on the related RiskEvent.
+ */
+const FIELD_LIMITS = {
+    action: 100,
+    actorRole: 50,
+    entityType: 50,
+    entityId: 100,
+    description: 255,
+    outcome: 30,
+    reason: 255,
+    source: 40,
+    correlationId: 80,
+    requestId: 80,
+    ipAddress: 64
+};
+
+/** Clips a string to the column width. Non-strings are returned untouched. */
+export const clipToColumn = (value, max) =>
+    (typeof value === 'string' && value.length > max ? value.slice(0, max) : value);
+
+const clipFields = (fields) => {
+    const out = { ...fields };
+    for (const [key, max] of Object.entries(FIELD_LIMITS)) {
+        out[key] = clipToColumn(out[key], max);
+    }
+    return out;
+};
+
 const isUniqueViolation = (error) => {
     const name = error?.name || '';
     const code = error?.parent?.code || error?.original?.code || error?.code;
@@ -97,7 +129,7 @@ export const writeAuditLog = async ({
     critical = false,
     transaction = null
 }) => {
-    const fields = {
+    const fields = clipFields({
         actorId,
         actorRole,
         action,
@@ -113,7 +145,7 @@ export const writeAuditLog = async ({
         source,
         correlationId,
         requestId
-    };
+    });
 
     const write = async (tx) => insertChainedRecord(fields, tx);
 

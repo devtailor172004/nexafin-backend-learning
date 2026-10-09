@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import User from '../models/User.js';
 import RiskEvent from '../models/RiskEvent.js';
 import AccountFreeze from '../models/AccountFreeze.js';
+import SecurityIncident from '../models/SecurityIncident.js';
 import LedgerEntry from '../models/LedgerEntry.js';
 import ProviderWebhookEvent from '../models/ProviderWebhookEvent.js';
 import AuditLog from '../models/AuditLog.js';
@@ -126,7 +127,15 @@ export const ensureSandboxRetailer = async (label) => {
     return user;
 };
 
-/** Releases any active freeze so scenarios are repeatable. */
+/**
+ * Returns a sandbox retailer to a clean baseline so every scenario is
+ * repeatable and independent of any scenario that ran before it.
+ *
+ * This clears *lab state only* — freezes, risk events and the incidents they
+ * opened for these synthetic retailers. The tamper-evident `audit_logs` trail
+ * is deliberately left intact, so nothing that happened is hidden from the
+ * audit chain; only the synthetic inputs the risk engine reads are reset.
+ */
 const resetRetailer = async (userId) => {
     const active = await AccountFreeze.findAll({ where: { userId, status: 'ACTIVE' } });
     for (const freeze of active) {
@@ -134,6 +143,16 @@ const resetRetailer = async (userId) => {
         freeze.releasedAt = new Date();
         freeze.releaseReason = 'Fraud Lab scenario reset';
         await freeze.save();
+    }
+
+    // The engine derives velocity, baseline and repeat-after-block from RiskEvent
+    // rows, so previous lab runs must not leak into the next scenario.
+    const events = await RiskEvent.findAll({ where: { userId }, attributes: ['incidentId'] });
+    const incidentIds = [...new Set(events.map((e) => e.incidentId).filter(Boolean))];
+
+    await RiskEvent.destroy({ where: { userId } });
+    if (incidentIds.length) {
+        await SecurityIncident.destroy({ where: { id: incidentIds, primaryUserId: userId } });
     }
 };
 
@@ -270,6 +289,7 @@ const scenarioC = async (scenario) => {
     const retailer = await ensureSandboxRetailer('A');
     await resetRetailer(retailer.id);
 
+
     const result = await evaluateAttempt({
         userId: retailer.id,
         transactionId: 'sandbox-c-beneficiary',
@@ -356,6 +376,8 @@ const scenarioD = async (scenario) => {
 const scenarioE = async (scenario) => {
     const retailerA = await ensureSandboxRetailer('A');
     const retailerB = await ensureSandboxRetailer('B');
+    await resetRetailer(retailerA.id);
+    await resetRetailer(retailerB.id);
 
     // A real resource owned by B.
     const ownedByB = await evaluateAttempt({
