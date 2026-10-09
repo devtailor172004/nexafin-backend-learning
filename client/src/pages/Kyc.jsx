@@ -215,8 +215,8 @@ export default function Kyc() {
         <div className="space-y-5">
             <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
-                    <h1 className="text-lg font-semibold text-slate-100">KYC Review</h1>
-                    <p className="text-xs text-slate-400">Full applicant details, journey, documents and camera liveness testing</p>
+                    <h1 className="text-2xl font-semibold tracking-tight text-slate-50">KYC Review</h1>
+                    <p className="mt-1 text-sm text-slate-400">Full applicant details, journey, documents and camera liveness testing</p>
                 </div>
                 <Select value={status} onChange={(e) => setStatus(e.target.value)} className="w-40">
                     {STATUS_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
@@ -237,14 +237,14 @@ export default function Kyc() {
                     <div className="-mx-4 overflow-x-auto sm:mx-0">
                         <table className="w-full min-w-[720px] text-left text-sm">
                             <thead>
-                                <tr className="border-b border-slate-800 text-xs uppercase tracking-wider text-slate-400">
-                                    <th className="px-3 py-2 font-medium">Merchant</th>
-                                    <th className="px-3 py-2 font-medium">Contact</th>
-                                    <th className="px-3 py-2 font-medium">DOB</th>
-                                    <th className="px-3 py-2 font-medium">Business</th>
-                                    <th className="px-3 py-2 font-medium">Updated</th>
-                                    <th className="px-3 py-2 font-medium">KYC</th>
-                                    <th className="px-3 py-2 font-medium" />
+                                <tr className="border-b border-slate-700 bg-slate-900/60 text-xs font-semibold uppercase tracking-wider text-slate-300">
+                                    <th className="whitespace-nowrap px-3 py-2 font-semibold">Merchant</th>
+                                    <th className="whitespace-nowrap px-3 py-2 font-semibold">Contact</th>
+                                    <th className="whitespace-nowrap px-3 py-2 font-semibold">DOB</th>
+                                    <th className="whitespace-nowrap px-3 py-2 font-semibold">Business</th>
+                                    <th className="whitespace-nowrap px-3 py-2 font-semibold">Updated</th>
+                                    <th className="whitespace-nowrap px-3 py-2 font-semibold">KYC</th>
+                                    <th className="whitespace-nowrap px-3 py-2 font-semibold" />
                                 </tr>
                             </thead>
                             <tbody>

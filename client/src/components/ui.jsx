@@ -4,9 +4,9 @@ export function Card({ title, subtitle, actions, children, className = '' }) {
     return (
         <section className={`rounded-2xl border border-slate-800 bg-[#0e1526] shadow-lg shadow-black/20 ${className}`}>
             {(title || actions) && (
-                <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 px-4 py-3 sm:px-5">
+                <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-slate-900/40 px-4 py-3.5 sm:px-5">
                     <div>
-                        {title && <h2 className="text-sm font-semibold tracking-wide text-slate-100">{title}</h2>}
+                        {title && <h2 className="text-base font-semibold tracking-tight text-slate-50">{title}</h2>}
                         {subtitle && <p className="mt-0.5 text-xs text-slate-400">{subtitle}</p>}
                     </div>
                     {actions}
@@ -35,9 +35,9 @@ export function StatCard({ label, value, hint, tone = 'default' }) {
     };
 
     return (
-        <div className="rounded-2xl border border-slate-800 bg-[#0e1526] p-4">
-            <p className="text-xs font-medium uppercase tracking-wider text-slate-400">{label}</p>
-            <p className={`mt-1 text-2xl font-semibold tabular-nums ${tones[tone] || tones.default}`}>{value}</p>
+        <div className="rounded-2xl border border-slate-800 bg-[#0e1526] p-4 transition hover:border-slate-700">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{label}</p>
+            <p className={`mt-1.5 text-3xl font-semibold tracking-tight tabular-nums ${tones[tone] || tones.default}`}>{value}</p>
             {hint && <p className="mt-1 text-xs text-slate-400">{hint}</p>}
         </div>
     );
@@ -63,7 +63,7 @@ export function Button({ children, variant = 'primary', className = '', ...props
 
 export function Spinner({ label = 'Loading…' }) {
     return (
-        <div className="flex items-center gap-3 py-8 text-sm text-slate-400">
+        <div className="flex items-center gap-3 py-10 text-sm text-slate-300">
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-600 border-t-sky-400" />
             {label}
         </div>
@@ -72,9 +72,9 @@ export function Spinner({ label = 'Loading…' }) {
 
 export function EmptyState({ title, description }) {
     return (
-        <div className="py-10 text-center">
-            <p className="text-sm font-medium text-slate-300">{title}</p>
-            {description && <p className="mx-auto mt-1 max-w-md text-xs text-slate-400">{description}</p>}
+        <div className="py-12 text-center">
+            <p className="text-base font-semibold tracking-tight text-slate-200">{title}</p>
+            {description && <p className="mx-auto mt-1.5 max-w-md text-sm text-slate-400">{description}</p>}
         </div>
     );
 }

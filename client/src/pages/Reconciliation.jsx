@@ -149,8 +149,8 @@ export default function Reconciliation() {
         <div className="space-y-5">
             <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
-                    <h1 className="text-lg font-semibold text-slate-100">Reconciliation Center</h1>
-                    <p className="text-xs text-slate-400">Internal ledger vs provider report, with an exception workflow</p>
+                    <h1 className="text-2xl font-semibold tracking-tight text-slate-50">Reconciliation Center</h1>
+                    <p className="mt-1 text-sm text-slate-400">Internal ledger vs provider report, with an exception workflow</p>
                 </div>
                 <Button onClick={startRun} disabled={running}>{running ? 'Running…' : 'Run reconciliation'}</Button>
             </div>
@@ -181,14 +181,14 @@ export default function Reconciliation() {
                     <div className="-mx-4 overflow-x-auto sm:mx-0">
                         <table className="w-full min-w-[680px] text-left text-sm">
                             <thead>
-                                <tr className="border-b border-slate-800 text-xs uppercase tracking-wider text-slate-400">
-                                    <th className="px-3 py-2 font-medium">Completed</th>
-                                    <th className="px-3 py-2 font-medium">Source</th>
-                                    <th className="px-3 py-2 font-medium">Period</th>
-                                    <th className="px-3 py-2 font-medium">Internal</th>
-                                    <th className="px-3 py-2 font-medium">Provider</th>
-                                    <th className="px-3 py-2 font-medium">Matched</th>
-                                    <th className="px-3 py-2 font-medium">Exceptions</th>
+                                <tr className="border-b border-slate-700 bg-slate-900/60 text-xs font-semibold uppercase tracking-wider text-slate-300">
+                                    <th className="whitespace-nowrap px-3 py-2 font-semibold">Completed</th>
+                                    <th className="whitespace-nowrap px-3 py-2 font-semibold">Source</th>
+                                    <th className="whitespace-nowrap px-3 py-2 font-semibold">Period</th>
+                                    <th className="whitespace-nowrap px-3 py-2 font-semibold">Internal</th>
+                                    <th className="whitespace-nowrap px-3 py-2 font-semibold">Provider</th>
+                                    <th className="whitespace-nowrap px-3 py-2 font-semibold">Matched</th>
+                                    <th className="whitespace-nowrap px-3 py-2 font-semibold">Exceptions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -236,14 +236,14 @@ export default function Reconciliation() {
                     <div className="-mx-4 overflow-x-auto sm:mx-0">
                         <table className="w-full min-w-[860px] text-left text-sm">
                             <thead>
-                                <tr className="border-b border-slate-800 text-xs uppercase tracking-wider text-slate-400">
-                                    <th className="px-3 py-2 font-medium">Type</th>
-                                    <th className="px-3 py-2 font-medium">Severity</th>
-                                    <th className="px-3 py-2 font-medium">Reference</th>
-                                    <th className="px-3 py-2 font-medium">Expected</th>
-                                    <th className="px-3 py-2 font-medium">Actual</th>
-                                    <th className="px-3 py-2 font-medium">Status</th>
-                                    <th className="px-3 py-2 font-medium" />
+                                <tr className="border-b border-slate-700 bg-slate-900/60 text-xs font-semibold uppercase tracking-wider text-slate-300">
+                                    <th className="whitespace-nowrap px-3 py-2 font-semibold">Type</th>
+                                    <th className="whitespace-nowrap px-3 py-2 font-semibold">Severity</th>
+                                    <th className="whitespace-nowrap px-3 py-2 font-semibold">Reference</th>
+                                    <th className="whitespace-nowrap px-3 py-2 font-semibold">Expected</th>
+                                    <th className="whitespace-nowrap px-3 py-2 font-semibold">Actual</th>
+                                    <th className="whitespace-nowrap px-3 py-2 font-semibold">Status</th>
+                                    <th className="whitespace-nowrap px-3 py-2 font-semibold" />
                                 </tr>
                             </thead>
                             <tbody>

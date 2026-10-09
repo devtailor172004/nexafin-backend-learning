@@ -233,8 +233,8 @@ export default function KycVerification() {
         <div className="space-y-5">
             <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
-                    <h1 className="text-lg font-semibold text-slate-100">KYC Verification</h1>
-                    <p className="text-xs text-slate-400">Inspect a customer, walk their KYC journey, run a camera liveness test and record the decision</p>
+                    <h1 className="text-2xl font-semibold tracking-tight text-slate-50">KYC Verification</h1>
+                    <p className="mt-1 text-sm text-slate-400">Inspect a customer, walk their KYC journey, run a camera liveness test and record the decision</p>
                 </div>
                 {journey && (
                     <div className="flex items-center gap-2">

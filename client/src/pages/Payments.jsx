@@ -168,8 +168,8 @@ export default function Payments() {
     return (
         <div className="space-y-5">
             <div>
-                <h1 className="text-lg font-semibold text-slate-100">Payments</h1>
-                <p className="text-xs text-slate-400">Search, inspect and explain any payment</p>
+                <h1 className="text-2xl font-semibold tracking-tight text-slate-50">Payments</h1>
+                <p className="mt-1 text-sm text-slate-400">Search, inspect and explain any payment</p>
             </div>
 
             <ErrorNotice message={error} onRetry={load} />
@@ -198,14 +198,14 @@ export default function Payments() {
                     <div className="-mx-4 overflow-x-auto sm:mx-0">
                         <table className="w-full min-w-[720px] text-left text-sm">
                             <thead>
-                                <tr className="border-b border-slate-800 text-xs uppercase tracking-wider text-slate-400">
-                                    <th className="px-3 py-2 font-medium">Created</th>
-                                    <th className="px-3 py-2 font-medium">Payment</th>
-                                    <th className="px-3 py-2 font-medium">Customer</th>
-                                    <th className="px-3 py-2 font-medium">Amount</th>
-                                    <th className="px-3 py-2 font-medium">Method</th>
-                                    <th className="px-3 py-2 font-medium">Status</th>
-                                    <th className="px-3 py-2 font-medium" />
+                                <tr className="border-b border-slate-700 bg-slate-900/60 text-xs font-semibold uppercase tracking-wider text-slate-300">
+                                    <th className="whitespace-nowrap px-3 py-2 font-semibold">Created</th>
+                                    <th className="whitespace-nowrap px-3 py-2 font-semibold">Payment</th>
+                                    <th className="whitespace-nowrap px-3 py-2 font-semibold">Customer</th>
+                                    <th className="whitespace-nowrap px-3 py-2 font-semibold">Amount</th>
+                                    <th className="whitespace-nowrap px-3 py-2 font-semibold">Method</th>
+                                    <th className="whitespace-nowrap px-3 py-2 font-semibold">Status</th>
+                                    <th className="whitespace-nowrap px-3 py-2 font-semibold" />
                                 </tr>
                             </thead>
                             <tbody>

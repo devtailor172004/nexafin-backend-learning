@@ -121,8 +121,8 @@ export default function ProviderHealth() {
     return (
         <div className="space-y-5">
             <div>
-                <h1 className="text-lg font-semibold text-slate-100">Provider Health</h1>
-                <p className="text-xs text-slate-400">
+                <h1 className="text-2xl font-semibold tracking-tight text-slate-50">Provider Health</h1>
+                <p className="mt-1 text-sm text-slate-400">
                     24-hour rolling window · generated {data?.generatedAt ? new Date(data.generatedAt).toLocaleString('en-IN') : '—'}
                 </p>
             </div>

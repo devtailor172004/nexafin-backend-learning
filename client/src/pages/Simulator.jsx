@@ -134,8 +134,8 @@ export default function Simulator() {
     return (
         <div className="space-y-5">
             <div>
-                <h1 className="text-lg font-semibold text-slate-100">Payment Simulator</h1>
-                <p className="text-xs text-slate-400">
+                <h1 className="text-2xl font-semibold tracking-tight text-slate-50">Payment Simulator</h1>
+                <p className="mt-1 text-sm text-slate-400">
                     Creates a real order + payment through the live APIs, then waits for the provider webhook.
                 </p>
             </div>

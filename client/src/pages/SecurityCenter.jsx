@@ -256,14 +256,14 @@ function EventExplorer({ selectedId, onSelected }) {
                             <table className="w-full text-left text-sm">
                                 <thead>
                                     <tr className="text-xs uppercase tracking-wide text-slate-400">
-                                        <th className="px-2 py-2">When</th>
-                                        <th className="px-2 py-2">Decision</th>
-                                        <th className="px-2 py-2">Level</th>
-                                        <th className="px-2 py-2">Score</th>
-                                        <th className="px-2 py-2">Amount</th>
-                                        <th className="px-2 py-2">Rules</th>
-                                        <th className="px-2 py-2">Status</th>
-                                        <th className="px-2 py-2" />
+                                        <th className="whitespace-nowrap px-2 py-2 font-semibold">When</th>
+                                        <th className="whitespace-nowrap px-2 py-2 font-semibold">Decision</th>
+                                        <th className="whitespace-nowrap px-2 py-2 font-semibold">Level</th>
+                                        <th className="whitespace-nowrap px-2 py-2 font-semibold">Score</th>
+                                        <th className="whitespace-nowrap px-2 py-2 font-semibold">Amount</th>
+                                        <th className="whitespace-nowrap px-2 py-2 font-semibold">Rules</th>
+                                        <th className="whitespace-nowrap px-2 py-2 font-semibold">Status</th>
+                                        <th className="whitespace-nowrap px-2 py-2 font-semibold" />
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -658,8 +658,8 @@ export default function SecurityCenter() {
         <div className="space-y-5">
             <header className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-lg font-semibold text-slate-100">Security Center</h1>
-                    <p className="text-xs text-slate-400">
+                    <h1 className="text-2xl font-semibold tracking-tight text-slate-50">Security Center</h1>
+                    <p className="mt-1 text-sm text-slate-400">
                         Fraud detection, holds, tenant isolation, ledger integrity and incident response.
                     </p>
                 </div>

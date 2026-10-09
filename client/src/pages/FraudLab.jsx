@@ -155,8 +155,8 @@ export default function FraudLab() {
         <div className="space-y-5">
             <header className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-lg font-semibold text-slate-100">Fraud Lab</h1>
-                    <p className="text-xs text-slate-400">
+                    <h1 className="text-2xl font-semibold tracking-tight text-slate-50">Fraud Lab</h1>
+                    <p className="mt-1 text-sm text-slate-400">
                         Run safe, repeatable security scenarios against synthetic sandbox retailers.
                     </p>
                 </div>
